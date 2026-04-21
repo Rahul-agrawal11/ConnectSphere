@@ -1,0 +1,117 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      # Enables Eureka-based service discovery for lb:// URIs
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+      routes:
+        # ── Auth Service ──────────────────────────────────────────────
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/v1/auth/**
+#          filters:
+#            - name: RequestRateLimiter
+#              args:
+#                redis-rate-limiter.replenishRate: 20
+#                redis-rate-limiter.burstCapacity: 40
+
+        # ── Post Service ──────────────────────────────────────────────
+        - id: post-service
+          uri: lb://post-service
+          predicates:
+            - Path=/api/v1/posts/**
+
+        # ── Comment Service ───────────────────────────────────────────
+        - id: comment-service
+          uri: lb://comment-service
+          predicates:
+            - Path=/api/v1/comments/**
+
+        # ── Like Service ──────────────────────────────────────────────
+        - id: like-service
+          uri: lb://like-service
+          predicates:
+            - Path=/api/v1/likes/**
+
+        # ── Follow Service ────────────────────────────────────────────
+        - id: follow-service
+          uri: lb://follow-service
+          predicates:
+            - Path=/api/v1/follows/**
+
+        # ── Notification Service ──────────────────────────────────────
+        - id: notification-service
+          uri: lb://notification-service
+          predicates:
+            - Path=/api/v1/notifications/**
+
+        # ── Media Service ─────────────────────────────────────────────
+        - id: media-service
+          uri: lb://media-service
+          predicates:
+            - Path=/api/v1/media/**,/api/v1/stories/**
+
+        # ── Search Service ────────────────────────────────────────────
+        - id: search-service
+          uri: lb://search-service
+          predicates:
+            - Path=/api/v1/search/**,/api/v1/hashtags/**
+
+      # Default filters applied to ALL routes
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+
+# Eureka registration
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
+
+# JWT configuration — must match auth-service exactly
+app:
+  jwt:
+    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    expiration-ms: 86400000  # 24 hours
+
+# Public routes — no JWT required
+  gateway:
+    public-routes:
+      - /api/v1/auth/register
+      - /api/v1/auth/login
+      - /api/v1/auth/refresh
+      - /api/v1/posts/public
+      - /api/v1/search/posts
+      - /api/v1/search/users
+      - /api/v1/hashtags/trending
+      - /actuator/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, gateway, metrics
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    com.connectsphere.apigateway: DEBUG
