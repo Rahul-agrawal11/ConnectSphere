@@ -1,0 +1,99 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: notification-service
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/cs_notification_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: root
+    password: "#Rahul@7505"
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+  # RabbitMQ configuration
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
+    listener:
+      simple:
+        # Acknowledge messages manually so we can re-queue on failure
+        acknowledge-mode: manual
+        # Number of consumer threads
+        concurrency: 2
+        max-concurrency: 5
+        # Retry failed messages up to 3 times before dead-lettering
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 2000
+
+  # Mail configuration (configure SMTP for production)
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: rahul.agrawal.nov@gmail.com
+    password: jjgd pmrp mjep xxhf
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+    # Set to false to disable email sending in dev
+    test-connection: false
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
+
+# RabbitMQ exchange and queue names
+app:
+  rabbitmq:
+    exchange: connectsphere.events
+    queues:
+      notification: connectsphere.notification.queue
+      dead-letter: connectsphere.notification.dlq
+    routing-keys:
+      notification: notification.#
+  mail:
+    enabled: false   # Set true in production with valid SMTP config
+    from: rahul.agrawal.nov@gmail.com
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.connectsphere.notification: DEBUG
+    org.springframework.amqp: INFO
