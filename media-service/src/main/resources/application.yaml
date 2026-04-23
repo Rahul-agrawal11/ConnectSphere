@@ -1,0 +1,88 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: media-service
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/cs_media_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: root
+    password: "#Rahul@7505"
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+  # Multipart file upload limits
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 55MB
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
+
+# Storage configuration
+app:
+  storage:
+    # Switch to 's3' for production
+    provider: local
+    local:
+      upload-dir: ./uploads
+      base-url: http://localhost:8087/files
+    s3:
+      bucket-name: connectsphere-media
+      region: ap-south-1
+      access-key: YOUR_AWS_ACCESS_KEY
+      secret-key: YOUR_AWS_SECRET_KEY
+      cdn-base-url: https://cdn.connectsphere.com
+
+  media:
+    allowed-image-types:
+      - image/jpeg
+      - image/png
+      - image/webp
+    allowed-video-types:
+      - video/mp4
+    max-image-size-mb: 10
+    max-video-size-mb: 50
+
+  story:
+    # Hours before a story expires
+    expiry-hours: 24
+    # How often the cleanup scheduler runs (cron: every 5 minutes)
+    cleanup-cron: "0 */5 * * * *"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.connectsphere.media: DEBUG
