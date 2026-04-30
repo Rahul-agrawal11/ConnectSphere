@@ -5,6 +5,11 @@ spring:
   application:
     name: notification-service
 
+  cloud:
+    loadbalancer:
+      retry:
+        enabled: false
+
   datasource:
     url: jdbc:mysql://localhost:3306/cs_notification_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: root
@@ -14,33 +19,25 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+    open-in-view: false
     show-sql: true
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
 
-  # RabbitMQ configuration
   rabbitmq:
     host: localhost
     port: 5672
     username: guest
     password: guest
     virtual-host: /
+    connection-timeout: 5000
     listener:
       simple:
-        # Acknowledge messages manually so we can re-queue on failure
         acknowledge-mode: manual
-        # Number of consumer threads
         concurrency: 2
         max-concurrency: 5
-        # Retry failed messages up to 3 times before dead-lettering
-        retry:
-          enabled: true
-          max-attempts: 3
-          initial-interval: 2000
 
-  # Mail configuration (configure SMTP for production)
   mail:
     host: smtp.gmail.com
     port: 587
@@ -52,7 +49,6 @@ spring:
           auth: true
           starttls:
             enable: true
-    # Set to false to disable email sending in dev
     test-connection: false
 
 eureka:
@@ -65,7 +61,6 @@ eureka:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${server.port}
 
-# RabbitMQ exchange and queue names
 app:
   rabbitmq:
     exchange: connectsphere.events
@@ -75,7 +70,7 @@ app:
     routing-keys:
       notification: notification.#
   mail:
-    enabled: false   # Set true in production with valid SMTP config
+    enabled: false
     from: rahul.agrawal.nov@gmail.com
 
 management:
@@ -86,6 +81,9 @@ management:
   endpoint:
     health:
       show-details: always
+  health:
+    rabbit:
+      enabled: false
 
 springdoc:
   api-docs:
@@ -96,4 +94,6 @@ springdoc:
 logging:
   level:
     com.connectsphere.notification: DEBUG
-    org.springframework.amqp: INFO
+    org.springframework.amqp: WARN
+    com.rabbitmq: WARN
+    org.springframework.cloud.loadbalancer: WARN

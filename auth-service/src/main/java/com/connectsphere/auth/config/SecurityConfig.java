@@ -2,11 +2,11 @@ package com.connectsphere.auth.config;
 
 import com.connectsphere.auth.oauth2.CustomOAuth2UserService;
 import com.connectsphere.auth.oauth2.OAuth2AuthenticationSuccessHandler;
+import com.connectsphere.auth.oauth2.OAuth2AuthenticationFailureHandler;
 import com.connectsphere.auth.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -17,19 +17,11 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizationRequestRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-
 import com.connectsphere.auth.security.UserDetailsServiceImpl;
 
-/**
- * Spring Security configuration for auth-service.
- *
- * Uses the modern component-based approach (Spring Boot 3.x / Spring Security 6.x).
- * No deprecated WebSecurityConfigurerAdapter.
- *
- * Session policy: STATELESS — JWT handles all authentication state.
- */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -41,15 +33,23 @@ public class SecurityConfig {
     private final PasswordEncoder passwordEncoder;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+    private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
+
+    @Bean
+    public HttpSessionOAuth2AuthorizationRequestRepository authorizationRequestRepository() {
+        return new HttpSessionOAuth2AuthorizationRequestRepository();
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
+                // IMPORTANT: Use IF_REQUIRED, not STATELESS.
+                // OAuth2 code flow REQUIRES a session to store the state parameter.
+                // JWT-based REST endpoints work fine with IF_REQUIRED too.
                 .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                        session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
-                        // Public endpoints — no JWT required
                         .requestMatchers(
                                 "/api/v1/auth/register",
                                 "/api/v1/auth/login",
@@ -63,23 +63,19 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/api-docs/**"
                         ).permitAll()
-
-                        // Admin-only endpoints
                         .requestMatchers("/api/v1/auth/admin/**")
                         .hasRole("ADMIN")
-
-                        // All other auth endpoints require authentication
                         .anyRequest().authenticated()
                 )
-                // OAuth2 Login configuration
                 .oauth2Login(oauth2 -> oauth2
-//                        .authorizationEndpoint(endpoint ->
-//                                endpoint.baseUri("/api/v1/auth/oauth2/authorize"))
+                        .authorizationEndpoint(endpoint ->
+                                endpoint.authorizationRequestRepository(authorizationRequestRepository()))
                         .redirectionEndpoint(endpoint ->
-                                endpoint.baseUri("/login/oauth2/code/*"))  // "/api/v1/auth/oauth2/callback/*"
+                                endpoint.baseUri("/login/oauth2/code/*"))
                         .userInfoEndpoint(userInfo ->
                                 userInfo.userService(customOAuth2UserService))
                         .successHandler(oAuth2AuthenticationSuccessHandler)
+                        .failureHandler(oAuth2AuthenticationFailureHandler)
                 )
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter,

@@ -75,6 +75,11 @@ public class GlobalAuthFilter implements GlobalFilter, Ordered {
         String role = jwtUtil.extractRole(token);
         String username = jwtUtil.extractUsername(token);
 
+        if (userId == null || userId.isBlank()) {
+            log.warn("JWT token does not contain valid userId for path: {}", path);
+            return writeUnauthorizedResponse(exchange, "Invalid token: userId missing");
+        }
+
         log.debug("Authenticated user: id={}, role={}, path={}", userId, role, path);
 
         // Mutate request to add identity headers for downstream services
@@ -86,7 +91,6 @@ public class GlobalAuthFilter implements GlobalFilter, Ordered {
 
         return chain.filter(exchange.mutate().request(mutatedRequest).build());
     }
-
 
     /**
      * Order = -1 ensures this filter runs before Spring Cloud Gateway's

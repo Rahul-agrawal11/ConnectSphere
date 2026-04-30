@@ -29,12 +29,14 @@ spring:
             client-id:  ${GOOGLE_CLIENT_ID}
             client-secret:  ${GOOGLE_CLIENT_SECRET}
             scope: email, profile
-            redirect-uri: "http://localhost:8080/login/oauth2/code/google" #"{baseUrl}/api/v1/auth/oauth2/callback/{registrationId}"
+            redirect-uri: "http://localhost:8080/login/oauth2/code/google"
+            #"{baseUrl}/api/v1/auth/oauth2/callback/{registrationId}"
           github:
             client-id:  ${GITHUB_CLIENT_ID}
             client-secret:  ${GITHUB_CLIENT_SECRET}
             scope: user:email, read:user
-            redirect-uri: "http://localhost:8080/login/oauth2/code/github" #"{baseUrl}/api/v1/auth/oauth2/callback/{registrationId}"
+            redirect-uri: "http://localhost:8080/login/oauth2/code/github"
+            #"{baseUrl}/api/v1/auth/oauth2/callback/{registrationId}"
 
 eureka:
   client:

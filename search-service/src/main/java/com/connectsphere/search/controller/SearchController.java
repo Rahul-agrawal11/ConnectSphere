@@ -25,10 +25,6 @@ import java.util.List;
  *
  * All read endpoints are open (guests can search).
  * Indexing endpoints are internal (called by post-service).
- *
- * The controller depends only on SearchService (the interface).
- * Swapping the implementation for Elasticsearch requires
- * zero changes here.
  */
 @Slf4j
 @RestController
@@ -43,26 +39,18 @@ public class SearchController {
     @Operation(
             summary = "Search posts by keyword",
             description = "Returns paginated post IDs matching the keyword. " +
-                    "Full post data is fetched from post-service. " +
-                    "Currently delegates to post-service's DB LIKE search."
+                    "Full post data is fetched from post-service via Feign."
     )
     @GetMapping("/api/v1/search/posts")
-    public ResponseEntity<ApiResponse<Object>> searchPosts(
+    public ResponseEntity<ApiResponse<Page<Long>>> searchPosts(
             @RequestParam String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
-        // Delegate entirely to post-service via Feign
-        // Raw Object return avoids DTO coupling between services
-        Object result = searchService.searchUsers(keyword);
-        try {
-            Pageable pageable = PageRequest.of(page, size);
-            searchService.searchPostIds(keyword, pageable);
-        } catch (Exception e) {
-            log.warn("Post search delegation failed: {}", e.getMessage());
-        }
-
-        // Pass through post-service result directly
+        // FIX: Was calling searchService.searchUsers(keyword) — completely wrong method.
+        // Must call searchPostIds which delegates to post-service via Feign.
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Long> result = searchService.searchPostIds(keyword, pageable);
         return ResponseEntity.ok(
                 ApiResponse.success("Post search results", result));
     }
@@ -155,8 +143,7 @@ public class SearchController {
 
     @Operation(
             summary = "Get post IDs for a hashtag (paginated)",
-            description = "Returns IDs of posts tagged with the given hashtag. " +
-                    "Use post-service to resolve IDs to full post data."
+            description = "Returns IDs of posts tagged with the given hashtag."
     )
     @GetMapping("/api/v1/hashtags/{tag}/posts")
     public ResponseEntity<ApiResponse<Page<Long>>> getPostsByHashtag(

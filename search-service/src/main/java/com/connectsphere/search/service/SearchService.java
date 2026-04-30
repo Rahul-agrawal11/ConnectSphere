@@ -2,6 +2,7 @@ package com.connectsphere.search.service;
 
 import com.connectsphere.search.dto.response.HashtagResponse;
 import com.connectsphere.search.dto.response.PostSummaryResponse;
+import com.connectsphere.search.dto.response.UserSummaryResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

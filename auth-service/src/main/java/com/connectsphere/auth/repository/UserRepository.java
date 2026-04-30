@@ -3,6 +3,7 @@ package com.connectsphere.auth.repository;
 import com.connectsphere.auth.entity.User;
 import com.connectsphere.auth.enums.AccountStatus;
 import com.connectsphere.auth.enums.Role;
+import org.reactivestreams.Publisher;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

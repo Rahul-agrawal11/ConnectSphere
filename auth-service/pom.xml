@@ -126,6 +126,12 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>5.23.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
     <dependencyManagement>
         <dependencies>
@@ -141,6 +147,8 @@
 
     <build>
         <plugins>
+
+            <!-- Spring Boot Plugin -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
@@ -153,6 +161,8 @@
                     </excludes>
                 </configuration>
             </plugin>
+
+            <!-- Compiler Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -172,6 +182,7 @@
                             </annotationProcessorPaths>
                         </configuration>
                     </execution>
+
                     <execution>
                         <id>default-testCompile</id>
                         <phase>test-compile</phase>
@@ -189,6 +200,19 @@
                     </execution>
                 </executions>
             </plugin>
+
+            <!-- ADD THIS HERE -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <argLine>
+                        -javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/1.14.19/byte-buddy-agent-1.14.19.jar
+                    </argLine>
+                </configuration>
+            </plugin>
+
         </plugins>
     </build>
 

@@ -56,27 +56,27 @@ public class OAuth2AuthenticationSuccessHandler
 
         String token = jwtUtil.generateToken(user);
 
-//        String targetUrl = UriComponentsBuilder.fromUriString(redirectUri)
-//                .queryParam("token", token)
-//                .queryParam("userId", user.getId())
-//                .build().toUriString();
+        String targetUrl = UriComponentsBuilder.fromUriString(redirectUri)
+                .queryParam("token", token)
+                .queryParam("userId", user.getId())
+                .build().toUriString();
+
+        log.info("OAuth2 success — redirecting user {} to frontend", user.getEmail());
+
+        getRedirectStrategy().sendRedirect(request, response, targetUrl);
+
+//        Map<String, Object> result = new HashMap<>();
+//        result.put("success", true);
+//        result.put("message", "OAuth2 login successful");
+//        result.put("token", token);
+//        result.put("userId", user.getId());
+//        result.put("email", user.getEmail());
+//        result.put("provider", user.getProvider());
 //
-//        log.info("OAuth2 success — redirecting user {} to frontend", user.getEmail());
+//        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+//        response.setCharacterEncoding("UTF-8");
+//        response.getWriter().write(objectMapper.writeValueAsString(result));
 //
-//        getRedirectStrategy().sendRedirect(request, response, targetUrl);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", true);
-        result.put("message", "OAuth2 login successful");
-        result.put("token", token);
-        result.put("userId", user.getId());
-        result.put("email", user.getEmail());
-        result.put("provider", user.getProvider());
-
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(objectMapper.writeValueAsString(result));
-
-        log.info("OAuth2 success for user {}", user.getEmail());
+//        log.info("OAuth2 success for user {}", user.getEmail());
     }
 }

@@ -18,10 +18,14 @@ import java.io.IOException;
  * by other services (like-service, comment-service, follow-service).
  *
  * Uses manual acknowledgement:
- *   - basicAck on success → message removed from queue
- *   - basicNack with requeue=false on failure → message goes to DLQ
+ *   - basicAck on success  → message removed from queue
+ *   - basicNack(requeue=false) on failure → message goes to DLQ
  *
- * This prevents message loss while avoiding infinite retry loops.
+ * The retry interceptor configured in RabbitMQConfig will retry the
+ * handler up to 3 times (with exponential backoff) before the
+ * RejectAndDontRequeueRecoverer fires the final nack automatically.
+ * The manual nack in the catch block handles any residual errors that
+ * slip past the interceptor.
  */
 @Slf4j
 @Component
@@ -30,10 +34,12 @@ public class NotificationEventListener {
 
     private final NotificationService notificationService;
 
-    @RabbitListener(
-            queues = "${app.rabbitmq.queues.notification}",
-            ackMode = "MANUAL"
-    )
+    /**
+     * ackMode is NOT set here — the SimpleRabbitListenerContainerFactory
+     * already configures MANUAL acknowledgement for all listeners.
+     * Duplicating it on the annotation caused a conflict in earlier versions.
+     */
+    @RabbitListener(queues = "${app.rabbitmq.queues.notification}")
     public void handleNotificationEvent(
             NotificationEvent event,
             Channel channel,
@@ -61,18 +67,20 @@ public class NotificationEventListener {
             // Acknowledge — message processed successfully
             channel.basicAck(deliveryTag, false);
 
-            log.debug("Notification event acknowledged: deliveryTag={}",
-                    deliveryTag);
+            log.debug("Notification event acknowledged: deliveryTag={}", deliveryTag);
 
         } catch (Exception e) {
-            log.error("Failed to process notification event: {} — {}",
-                    event, e.getMessage(), e);
+            log.error("Failed to process notification event: type={} recipientId={} — {}",
+                    event != null ? event.getType() : "UNKNOWN",
+                    event != null ? event.getRecipientId() : "UNKNOWN",
+                    e.getMessage(), e);
 
             try {
                 // Nack without requeue → message goes to DLQ
                 channel.basicNack(deliveryTag, false, false);
             } catch (IOException ioEx) {
-                log.error("Failed to nack message: {}", ioEx.getMessage());
+                log.error("Failed to nack message deliveryTag={}: {}",
+                        deliveryTag, ioEx.getMessage());
             }
         }
     }

@@ -11,7 +11,14 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Notification-service security — stateless, trusts gateway headers.
+ * Notification-service security — stateless, trusts gateway-forwarded headers.
+ *
+ * Sits behind the API Gateway which handles JWT validation and injects
+ * X-User-Id / X-User-Role headers that controllers read directly.
+ * No JWT parsing or session management is needed here.
+ *
+ * UserDetailsServiceAutoConfiguration is excluded at the @SpringBootApplication
+ * level in NotificationServiceApplication, so no random password warning.
  */
 @Configuration
 @EnableWebSecurity
