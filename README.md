@@ -290,18 +290,6 @@ src/main/java/com/connectsphere/{service}/
 
 ---
 
-## Known Gaps / What I'd Add Next
-
-A few things that are intentionally deferred:
-
-- **No circuit breakers** — Feign calls to downstream services have no fallback. If `post-service` is down, `comment-service` throws an unhandled error. Resilience4j would fix this.
-- **No distributed tracing** — debugging across 10 services right now means correlating logs by hand. Micrometer Tracing + Zipkin is the obvious next step.
-- **Local file storage** — `media-service` writes files to disk. This doesn't work across multiple instances. S3 or MinIO is the production path.
-- **No cascading deletes** — deleting a post doesn't clean up its comments or likes in the other services' databases. Implementing a Saga with RabbitMQ events is the correct approach.
-- **No rate limiting** — the gateway currently has no rate limiter. Spring Cloud Gateway's `RequestRateLimiter` filter with Redis would handle this.
-
----
-
 ## License
 
 MIT
