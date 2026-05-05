@@ -9,6 +9,7 @@ import com.connectsphere.post.exception.PostNotFoundException;
 import com.connectsphere.post.exception.UnauthorizedActionException;
 import com.connectsphere.post.repository.PostRepository;
 import com.connectsphere.post.service.PostService;
+import com.connectsphere.post.client.SearchServiceClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -25,6 +26,8 @@ public class PostServiceImpl implements PostService {
 
     private final PostRepository postRepository;
 
+    private final SearchServiceClient searchServiceClient;
+
     // ── CRUD ────────────────────────────────────────────────────────────
 
     @Override
@@ -39,6 +42,13 @@ public class PostServiceImpl implements PostService {
         post.setMediaUrlList(request.getMediaUrls());
 
         Post saved = postRepository.save(post);
+
+        try {
+            searchServiceClient.indexPost(saved.getId(), saved.getContent());
+        } catch (Exception e) {
+            log.warn("Failed to index hashtags for postId={}: {}", saved.getId(), e.getMessage());
+        }
+
         log.info("Post created: id={} by authorId={}", saved.getId(), authorId);
         return mapToResponse(saved);
     }
@@ -67,7 +77,16 @@ public class PostServiceImpl implements PostService {
             post.setVisibility(request.getVisibility());
         }
 
-        return mapToResponse(postRepository.save(post));
+        Post saved = postRepository.save(post);
+
+        try {
+            searchServiceClient.removePostIndex(saved.getId());
+            searchServiceClient.indexPost(saved.getId(), saved.getContent());
+        } catch (Exception e) {
+            log.warn("Failed to re-index hashtags for postId={}: {}", saved.getId(), e.getMessage());
+        }
+
+        return mapToResponse(saved);
     }
 
     @Override
@@ -75,8 +94,16 @@ public class PostServiceImpl implements PostService {
     public void deletePost(Long postId, Long requesterId) {
         Post post = findActivePost(postId);
         enforceOwnership(post, requesterId);
+
         post.setIsDeleted(true);
         postRepository.save(post);
+
+        try {
+            searchServiceClient.removePostIndex(postId);
+        } catch (Exception e) {
+            log.warn("Failed to remove hashtag index for postId={}: {}", postId, e.getMessage());
+        }
+
         log.info("Post soft-deleted: id={} by requesterId={}", postId, requesterId);
     }
 

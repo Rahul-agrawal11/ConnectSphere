@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -124,15 +125,20 @@ public class LikeServiceImpl implements LikeService {
                 userId, targetId, targetType);
     }
 
+    /**
+     * Returns the current user's reaction on a target, or null if none exists.
+     *
+     * FIX: Previously threw LikeNotFoundException (404) when no reaction existed.
+     * This caused console errors in the frontend for every post load.
+     * Now returns null data with a 200 OK so the frontend can treat it as "no reaction".
+     */
     @Override
     public LikeResponse getUserReaction(Long userId, Long targetId,
                                         TargetType targetType) {
-        Like like = likeRepository
-                .findByUserIdAndTargetIdAndTargetType(userId, targetId, targetType)
-                .orElseThrow(() -> new LikeNotFoundException(
-                        "No reaction found for this user on " +
-                                targetType.name().toLowerCase() + " " + targetId));
-        return mapToResponse(like);
+        Optional<Like> like = likeRepository
+                .findByUserIdAndTargetIdAndTargetType(userId, targetId, targetType);
+        // Return null if not found — controller will wrap in ApiResponse with null data
+        return like.map(this::mapToResponse).orElse(null);
     }
 
     @Override
@@ -199,12 +205,14 @@ public class LikeServiceImpl implements LikeService {
      * Route the counter increment to the correct downstream service
      * based on the targetType.
      * Failures are logged but do not roll back the reaction save.
+     * STORY targets have no counter service — skip silently.
      */
     private void incrementTargetCounter(Long targetId, TargetType targetType) {
         try {
             switch (targetType) {
                 case POST    -> postServiceClient.incrementLikesCount(targetId);
                 case COMMENT -> commentServiceClient.incrementLikesCount(targetId);
+                case STORY   -> log.debug("Story reactions do not increment a counter service");
             }
         } catch (Exception e) {
             log.warn("Failed to increment likesCount on {}:{} — {}",
@@ -215,12 +223,14 @@ public class LikeServiceImpl implements LikeService {
     /**
      * Route the counter decrement to the correct downstream service.
      * Failures are logged but do not fail the unreact operation.
+     * STORY targets have no counter service — skip silently.
      */
     private void decrementTargetCounter(Long targetId, TargetType targetType) {
         try {
             switch (targetType) {
                 case POST    -> postServiceClient.decrementLikesCount(targetId);
                 case COMMENT -> commentServiceClient.decrementLikesCount(targetId);
+                case STORY   -> log.debug("Story reactions do not decrement a counter service");
             }
         } catch (Exception e) {
             log.warn("Failed to decrement likesCount on {}:{} — {}",

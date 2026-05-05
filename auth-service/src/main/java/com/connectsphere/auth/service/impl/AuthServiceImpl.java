@@ -13,6 +13,10 @@ import com.connectsphere.auth.repository.RefreshTokenRepository;
 import com.connectsphere.auth.repository.UserRepository;
 import com.connectsphere.auth.security.JwtUtil;
 import com.connectsphere.auth.service.AuthService;
+import com.connectsphere.auth.dto.event.OtpEmailEvent;
+import com.connectsphere.auth.dto.request.VerifyOtpRequest;
+import com.connectsphere.auth.publisher.NotificationPublisher;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,6 +38,10 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtUtil jwtUtil;
     private final PasswordEncoder passwordEncoder;
+
+    private final OtpService otpService;
+    private final NotificationPublisher notificationPublisher;
+    private final ObjectMapper objectMapper;
 
     @Value("${app.jwt.refresh-expiration-ms}")
     private long refreshExpirationMs;
@@ -260,6 +268,69 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public UserProfileResponse getUserById(Long userId) {
         return mapToProfileResponse(findUserById(userId));
+    }
+
+    @Override
+    public String sendOtp(RegisterRequest request) {
+        if(userRepository.existsByEmail(request.getEmail())) {
+            throw new UserAlreadyExistsException("Email is already registered: " + request.getEmail());
+        }
+
+        if(userRepository.existsByUsername(request.getUsername())) {
+            throw new UserAlreadyExistsException("Username is already taken: " + request.getUsername());
+        }
+
+        try {
+            String userData = objectMapper.writeValueAsString(request);
+            otpService.storePendingUser(request.getEmail(), userData);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to process registration request");
+        }
+
+        String otp = otpService.generateAndStoreOtp(request.getEmail());
+        notificationPublisher.sendOtpEmail(request.getEmail(), request.getFullName(), otp);
+        return "OTp sent to " + request.getEmail() + ". Valid for 5 minutes.";
+    }
+
+    @Override
+    public UserProfileResponse verifyOtpAndRegister(VerifyOtpRequest request) {
+
+        // Validate OTP
+        if(!otpService.validateOtp(request.getEmail(), request.getOtp())) {
+            throw new InvalidCredentialsException("Invalid or expired OTP!");
+        }
+
+        // Fetch pending user data from Redis
+        String userData = otpService.getPendingUser(request.getEmail());
+        if(userData == null) {
+            throw new InvalidCredentialsException("Registration session expired. Please register again.");
+        }
+
+        try {
+            RegisterRequest registerRequest = objectMapper.readValue(userData, RegisterRequest.class);
+
+            // Save user permanently to DB
+            User user = User.builder()
+                    .username(registerRequest.getUsername())
+                    .email(registerRequest.getEmail())
+                    .passwordHash(passwordEncoder.encode(registerRequest.getPassword()))
+                    .fullName(registerRequest.getFullName())
+                    .role(Role.USER)
+                    .provider(AuthProvider.LOCAL)
+                    .status(AccountStatus.ACTIVE)
+                    .build();
+
+            User saved = userRepository.save(user);
+
+            // Cleanup Redis
+            otpService.deletePendingUser(request.getEmail());
+
+            log.info("New user registered after OTP: {} ({})", saved.getUsername(), saved.getBio());
+            return mapToProfileResponse(saved);
+        } catch (Exception e) {
+            throw new RuntimeException("Registration failed: " + e.getMessage());
+        }
+
     }
 
     // ── Private Helpers ─────────────────────────────────────────────────

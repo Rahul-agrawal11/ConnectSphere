@@ -2,6 +2,7 @@ package com.connectsphere.auth.repository;
 
 import com.connectsphere.auth.entity.User;
 import com.connectsphere.auth.enums.AccountStatus;
+import com.connectsphere.auth.enums.AuthProvider;
 import com.connectsphere.auth.enums.Role;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,36 +12,66 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 
 import java.util.Optional;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-public class UserRepositoryTest {
+class UserRepositoryTest {
 
     @Autowired
     private UserRepository userRepository;
 
     private User createUser() {
-        User user = new User();
-        user.setUsername("Rahul011");
-        user.setEmail("rahul@gmail.com");
-        user.setFullName("Test User");
-        user.setPasswordHash("password");
-        user.setRole(Role.USER);
-        user.setStatus(AccountStatus.ACTIVE);
-        return user;
+        return User.builder()
+                .username("rahul011")
+                .email("rahul@gmail.com")
+                .fullName("Rahul Agrawal")
+                .passwordHash("encodedPassword")
+                .role(Role.USER)
+                .provider(AuthProvider.LOCAL)
+                .status(AccountStatus.ACTIVE)
+                .build();
     }
 
     @Test
     @DisplayName("Should find user by email")
     void findByEmail_ShouldReturnUser() {
-        User user = createUser();
-        userRepository.save(user);
+        User savedUser = userRepository.save(createUser());
 
-        Optional<User> found = userRepository.findByEmail("rahul@gmail.com");
+        Optional<User> found = userRepository.findByEmail(savedUser.getEmail());
 
         assertThat(found).isPresent();
-        assertThat(found.get().getUsername()).isEqualTo("Rahul011");
+        assertThat(found.get().getUsername()).isEqualTo("rahul011");
     }
 
+    @Test
+    @DisplayName("Should find user by username")
+    void findByUsername_ShouldReturnUser() {
+        User savedUser = userRepository.save(createUser());
+
+        Optional<User> found = userRepository.findByUsername(savedUser.getUsername());
+
+        assertThat(found).isPresent();
+        assertThat(found.get().getEmail()).isEqualTo("rahul@gmail.com");
+    }
+
+    @Test
+    @DisplayName("Should check email exists")
+    void existsByEmail_ShouldReturnTrue() {
+        userRepository.save(createUser());
+
+        boolean exists = userRepository.existsByEmail("rahul@gmail.com");
+
+        assertThat(exists).isTrue();
+    }
+
+    @Test
+    @DisplayName("Should check username exists")
+    void existsByUsername_ShouldReturnTrue() {
+        userRepository.save(createUser());
+
+        boolean exists = userRepository.existsByUsername("rahul011");
+
+        assertThat(exists).isTrue();
+    }
 }

@@ -26,9 +26,9 @@ public interface MediaService {
     // Story management
     StoryResponse createStory(Long authorId, MultipartFile file,
                               String caption);
-    StoryResponse getStoryById(Long storyId);
-    List<StoryResponse> getActiveStoriesByUser(Long authorId);
-    List<StoryResponse> getStoriesFeed(List<Long> followedUserIds);
+    StoryResponse getStoryById(Long storyId, Long requesterId);
+    List<StoryResponse> getActiveStoriesByUser(Long authorId, Long requesterId);
+    List<StoryResponse> getStoriesFeed(List<Long> followedUserIds, Long requesterId);
     StoryResponse viewStory(Long storyId, Long viewerId);
     void deleteStory(Long storyId, Long requesterId);
 

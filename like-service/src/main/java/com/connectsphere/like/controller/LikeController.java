@@ -25,6 +25,10 @@ import org.springframework.web.bind.annotation.*;
  *
  * All write endpoints read X-User-Id from the gateway-injected header.
  * Read endpoints (summary, count, hasReacted) are open for guest access.
+ *
+ * FIX: GET /my-reaction now returns 200 with null data when the user has
+ * not yet reacted, instead of 404. This prevents unnecessary error noise
+ * in the frontend logs and matches RESTful best practice for "no resource yet".
  */
 @Slf4j
 @RestController
@@ -108,8 +112,21 @@ public class LikeController {
 
     // ── Query: Get User's Reaction ────────────────────────────────────────
 
+    /**
+     * Get the current user's reaction on a specific target.
+     *
+     * FIX: Previously threw 404 when user had not reacted.
+     * Now returns 200 with data: null so the frontend can cleanly
+     * detect "no reaction" without catching an error.
+     *
+     * Frontend PostCard usage:
+     *   const res = await getMyReaction(post.id, 'POST');
+     *   setUserReaction(res.data.data?.reactionType || null);  // works with null data
+     */
     @Operation(
             summary = "Get the current user's reaction on a specific target",
+            description = "Returns 200 with data=null if the user has not reacted. " +
+                    "Returns 200 with the reaction object if the user has reacted.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @GetMapping("/my-reaction")
@@ -118,8 +135,12 @@ public class LikeController {
             @RequestParam Long targetId,
             @RequestParam TargetType targetType) {
 
-        LikeResponse response = likeService.getUserReaction(
-                userId, targetId, targetType);
+        // Service returns null if no reaction exists (no exception thrown)
+        LikeResponse response = likeService.getUserReaction(userId, targetId, targetType);
+
+        if (response == null) {
+            return ResponseEntity.ok(ApiResponse.success("No reaction found", null));
+        }
         return ResponseEntity.ok(ApiResponse.success("User reaction", response));
     }
 

@@ -36,14 +36,21 @@ public class AuthController {
 
     // ── Public Endpoints ─────────────────────────────────────────────────
 
-    @Operation(summary = "Register a new user account")
+    @Operation(summary = "Send OTP to email for registration")
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<UserProfileResponse>> register(
+    public ResponseEntity<ApiResponse<String>> register(
             @Valid @RequestBody RegisterRequest request) {
 
-        UserProfileResponse profile = authService.register(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("User registered successfully", profile));
+//        UserProfileResponse profile = authService.register(request);
+        String message = authService.sendOtp(request);
+        return ResponseEntity.ok(ApiResponse.success(message));
+    }
+
+    @Operation(summary = "Verify OTP and complete registration")
+    @PostMapping("/verify-otp")
+    public ResponseEntity<ApiResponse<UserProfileResponse>> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
+        UserProfileResponse profile = authService.verifyOtpAndRegister(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("User registered successfully", profile));
     }
 
     @Operation(summary = "Login with email/username and password")

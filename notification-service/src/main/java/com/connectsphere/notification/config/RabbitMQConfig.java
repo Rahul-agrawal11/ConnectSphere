@@ -3,8 +3,6 @@ package com.connectsphere.notification.config;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.config.RetryInterceptorBuilder;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
-import org.springframework.amqp.rabbit.connection.AbstractConnectionFactory;
-import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer;
@@ -13,10 +11,10 @@ import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.retry.backoff.ExponentialBackOffPolicy;
 import org.springframework.retry.interceptor.RetryOperationsInterceptor;
-import org.springframework.retry.policy.AlwaysRetryPolicy;
-import org.springframework.retry.support.RetryTemplate;
+import org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * RabbitMQ topology for ConnectSphere notification events.
@@ -91,7 +89,22 @@ public class RabbitMQConfig {
 
     @Bean
     public MessageConverter jsonMessageConverter() {
-        return new Jackson2JsonMessageConverter();
+        Jackson2JsonMessageConverter converter = new Jackson2JsonMessageConverter();
+
+        DefaultJackson2JavaTypeMapper typeMapper = new DefaultJackson2JavaTypeMapper();
+
+        // ✅ This tells RabbitMQ: ignore the sender's class name, use our own mapping
+        typeMapper.setTrustedPackages("*");
+
+        Map<String, Class<?>> idClassMapping = new HashMap<>();
+        idClassMapping.put(
+                "com.connectsphere.auth.dto.event.OtpEmailEvent",  // sender's class name
+                com.connectsphere.notification.dto.OtpEmailEvent.class  // our local class
+        );
+        typeMapper.setIdClassMapping(idClassMapping);
+
+        converter.setJavaTypeMapper(typeMapper);
+        return converter;
     }
 
     @Bean

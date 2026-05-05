@@ -165,35 +165,37 @@ public class MediaServiceImpl implements MediaService {
         log.info("Story created: id={} authorId={} expiresAt={}",
                 saved.getId(), authorId, expiresAt);
 
-        return mapToStoryResponse(saved);
+        return mapToStoryResponse(saved, authorId);
     }
 
     @Override
-    public StoryResponse getStoryById(Long storyId) {
+    public StoryResponse getStoryById(Long storyId, Long requesterId) {
         Story story = storyRepository.findByIdAndIsActiveTrue(storyId)
                 .orElseThrow(() -> new StoryNotFoundException(
                         "Story not found or has expired: " + storyId));
-        return mapToStoryResponse(story);
+
+        return mapToStoryResponse(story, requesterId);
     }
 
     @Override
-    public List<StoryResponse> getActiveStoriesByUser(Long authorId) {
+    public List<StoryResponse> getActiveStoriesByUser(Long authorId, Long requesterId) {
         return storyRepository
                 .findByAuthorIdAndIsActiveTrueOrderByCreatedAtDesc(authorId)
                 .stream()
-                .map(this::mapToStoryResponse)
+                .map(story -> mapToStoryResponse(story, requesterId))
                 .toList();
     }
 
     @Override
-    public List<StoryResponse> getStoriesFeed(List<Long> followedUserIds) {
+    public List<StoryResponse> getStoriesFeed(List<Long> followedUserIds, Long requesterId) {
         if (followedUserIds == null || followedUserIds.isEmpty()) {
             return List.of();
         }
+
         return storyRepository
                 .findActiveStoriesByAuthorIds(followedUserIds)
                 .stream()
-                .map(this::mapToStoryResponse)
+                .map(story -> mapToStoryResponse(story, requesterId))
                 .toList();
     }
 
@@ -212,7 +214,7 @@ public class MediaServiceImpl implements MediaService {
             }
         }
 
-        return mapToStoryResponse(story);
+        return mapToStoryResponse(story, viewerId);
     }
 
     @Override
@@ -302,13 +304,17 @@ public class MediaServiceImpl implements MediaService {
                 .build();
     }
 
-    private StoryResponse mapToStoryResponse(Story story) {
+    private StoryResponse mapToStoryResponse(Story story, Long requesterId) {
         long secondsUntilExpiry = 0L;
+
         if (story.getIsActive() && story.getExpiresAt() != null) {
-            secondsUntilExpiry = Math.max(0L,
-                    ChronoUnit.SECONDS.between(
-                            LocalDateTime.now(), story.getExpiresAt()));
+            secondsUntilExpiry = Math.max(
+                    0L,
+                    ChronoUnit.SECONDS.between(LocalDateTime.now(), story.getExpiresAt())
+            );
         }
+
+        boolean isOwner = requesterId != null && story.getAuthorId().equals(requesterId);
 
         return StoryResponse.builder()
                 .id(story.getId())
@@ -316,7 +322,7 @@ public class MediaServiceImpl implements MediaService {
                 .mediaUrl(story.getMediaUrl())
                 .caption(story.getCaption())
                 .mediaType(story.getMediaType().name())
-                .viewsCount(story.getViewsCount())
+                .viewsCount(isOwner ? story.getViewsCount() : null)
                 .expiresAt(story.getExpiresAt())
                 .createdAt(story.getCreatedAt())
                 .secondsUntilExpiry(secondsUntilExpiry)

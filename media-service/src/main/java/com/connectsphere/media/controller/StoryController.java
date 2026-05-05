@@ -19,6 +19,13 @@ import java.util.List;
 /**
  * Story REST controller.
  * Stories are ephemeral media visible for 24 hours.
+ *
+ * FIX: Public read endpoints (GET /user/{authorId}, GET /feed, GET /{storyId})
+ * now use @RequestHeader(value = "X-User-Id", required = false) so that
+ * unauthenticated/guest requests don't fail with MissingRequestHeaderException.
+ *
+ * Write endpoints (POST, DELETE, POST /{id}/view) still require X-User-Id
+ * because the gateway always injects it for authenticated routes.
  */
 @Slf4j
 @RestController
@@ -52,26 +59,48 @@ public class StoryController {
 
     // ── Read ──────────────────────────────────────────────────────────────
 
+    /**
+     * Get a story by ID.
+     *
+     * FIX: userId is now optional (required = false). Guests can view public
+     * story metadata. The service uses userId = null when unauthenticated.
+     */
     @Operation(summary = "Get a story by ID")
     @GetMapping("/{storyId}")
     public ResponseEntity<ApiResponse<StoryResponse>> getStory(
-            @PathVariable Long storyId) {
+            @PathVariable Long storyId,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
 
         return ResponseEntity.ok(
                 ApiResponse.success("Story fetched",
-                        mediaService.getStoryById(storyId)));
+                        mediaService.getStoryById(storyId, userId)));
     }
 
+    /**
+     * Get all active stories for a specific user.
+     *
+     * FIX: userId is now optional (required = false). This endpoint is listed
+     * as a public route in the gateway (/api/v1/stories/user/**). Without
+     * required=false, Spring throws MissingRequestHeaderException (→ 400/500)
+     * when no JWT is present and the gateway does not inject X-User-Id.
+     */
     @Operation(summary = "Get all active stories for a user")
     @GetMapping("/user/{authorId}")
     public ResponseEntity<ApiResponse<List<StoryResponse>>> getStoriesByUser(
-            @PathVariable Long authorId) {
+            @PathVariable Long authorId,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
 
         return ResponseEntity.ok(
                 ApiResponse.success("User stories",
-                        mediaService.getActiveStoriesByUser(authorId)));
+                        mediaService.getActiveStoriesByUser(authorId, userId)));
     }
 
+    /**
+     * Get stories feed from followed users.
+     *
+     * FIX: userId is now optional (required = false). Authenticated users
+     * get their feed; guests get an empty list (followedUserIds will be empty).
+     */
     @Operation(
             summary = "Get stories feed from followed users",
             description = "Pass followedUserIds as a comma-separated list. " +
@@ -80,11 +109,12 @@ public class StoryController {
     )
     @GetMapping("/feed")
     public ResponseEntity<ApiResponse<List<StoryResponse>>> getStoriesFeed(
-            @RequestParam List<Long> followedUserIds) {
+            @RequestParam List<Long> followedUserIds,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
 
         return ResponseEntity.ok(
                 ApiResponse.success("Stories feed",
-                        mediaService.getStoriesFeed(followedUserIds)));
+                        mediaService.getStoriesFeed(followedUserIds, userId)));
     }
 
     // ── View Story (increments view count) ───────────────────────────────

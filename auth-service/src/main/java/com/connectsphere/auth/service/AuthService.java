@@ -38,4 +38,8 @@ public interface AuthService {
 
     // Internal helper used by OAuth2 success handler
     UserProfileResponse getUserById(Long userId);
+
+    // Otp flow
+    String sendOtp(RegisterRequest request);
+    UserProfileResponse verifyOtpAndRegister(VerifyOtpRequest request);
 }
