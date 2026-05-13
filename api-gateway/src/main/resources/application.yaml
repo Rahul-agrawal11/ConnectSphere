@@ -83,9 +83,8 @@ eureka:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${server.port}
 
-# FIX: JWT secret must come from env var — same var used by auth-service.
-# The hardcoded value was a mismatch risk if auth-service changes its secret.
-# Both MUST use the same value.
+# JWT secret — must match the same value used by auth-service.
+# Override via JWT_SECRET environment variable in production.
 app:
   jwt:
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
@@ -98,7 +97,7 @@ app:
       - /api/v1/auth/verify-otp
       - /api/v1/auth/login
       - /api/v1/auth/refresh
-      # FIX: search and profile/{id} must be public — guests can look up users
+      # Search and public profile lookup — guests can search/view profiles
       - /api/v1/auth/search
       - /api/v1/auth/profile/*
       # OAuth2 flow paths
@@ -107,41 +106,56 @@ app:
       - /oauth2/**
 
       # ── Post public endpoints ──────────────────────────────────────
+      # Public feed (home page — no auth needed)
       - /api/v1/posts/public
-      # FIX: single post view and user post listing must be public (for PUBLIC-visibility posts)
+      # FIX: single post view — guests can read PUBLIC-visibility posts.
+      # PostController uses required=false for X-User-Id on this endpoint.
+      - /api/v1/posts/*
+      # FIX: user post listing — Profile page renders for guests.
+      # PostController uses required=false for X-User-Id on this endpoint.
+      - /api/v1/posts/user/**
+      # Keyword search is public
       - /api/v1/posts/search
+      # Post count on profile page
       - /api/v1/posts/count/**
 
       # ── Comment read endpoints (public) ───────────────────────────
-      # FIX: comments on a public post should be readable by guests
+      # Comments on PUBLIC posts are readable by guests
       - /api/v1/comments/post/**
+      # Individual comment lookup (for deep links)
+      - /api/v1/comments/*
 
       # ── Like read endpoints (public) ──────────────────────────────
-      # FIX: reaction summary and counts are public (emoji bar visible to guests)
+      # Emoji reaction bar summary — visible to guests on public posts
       - /api/v1/likes/summary
       - /api/v1/likes/count
+      - /api/v1/likes/count/by-type
+      # Reaction list by target (for "N people reacted" popup)
       - /api/v1/likes/target
+      # FIX: has-reacted is called by PostCard for guests too.
+      # LikeController returns false for null userId (required=false on this endpoint).
+      - /api/v1/likes/has-reacted
 
       # ── Follow public endpoints ───────────────────────────────────
-      # FIX: follower/following lists and counts are public (profile page)
+      # Follower/following lists and counts — visible on public profiles
       - /api/v1/follows/*/followers
       - /api/v1/follows/*/following
       - /api/v1/follows/*/counts
       - /api/v1/follows/*/followers/count
       - /api/v1/follows/*/following/count
-      # Internal endpoint — only accessible within cluster but public at gateway level
+      # Internal endpoint — only accessible within cluster
       - /api/v1/follows/internal/**
 
       # ── Search / Hashtag public endpoints ─────────────────────────
       - /api/v1/search/posts
       - /api/v1/search/users
-      # FIX: hashtag search autocomplete and trending must be public
       - /api/v1/search/hashtags
       - /api/v1/hashtags/trending
       - /api/v1/hashtags/**
 
       # ── Stories public reads ──────────────────────────────────────
-      # FIX: story listing per user is public (profile page shows stories)
+      # Story listing per user — profile page shows story rings for guests.
+      # StoryController uses required=false for X-User-Id on this endpoint (fixed).
       - /api/v1/stories/user/**
 
       # ── Actuator ─────────────────────────────────────────────────

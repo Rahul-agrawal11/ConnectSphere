@@ -8,12 +8,15 @@ import com.connectsphere.like.dto.response.ReactionSummaryResponse;
 import com.connectsphere.like.entity.Like;
 import com.connectsphere.like.enums.ReactionType;
 import com.connectsphere.like.enums.TargetType;
+import com.connectsphere.like.event.NotificationEvent;
 import com.connectsphere.like.exception.DuplicateReactionException;
 import com.connectsphere.like.exception.LikeNotFoundException;
 import com.connectsphere.like.repository.LikeRepository;
 import com.connectsphere.like.service.LikeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -32,6 +35,13 @@ public class LikeServiceImpl implements LikeService {
     private final LikeRepository likeRepository;
     private final PostServiceClient postServiceClient;
     private final CommentServiceClient commentServiceClient;
+    private final RabbitTemplate rabbitTemplate;
+
+    @Value("${app.rabbitmq.exchange}")
+    private String exchange;
+
+    @Value("${app.rabbitmq.routing-keys.like}")
+    private String likeRoutingKey;
 
     // ── Core Reaction Operations ─────────────────────────────────────────
 
@@ -39,7 +49,6 @@ public class LikeServiceImpl implements LikeService {
     @Transactional
     public LikeResponse react(Long userId, ReactRequest request) {
 
-        // Enforce one reaction per user per target
         if (likeRepository.existsByUserIdAndTargetIdAndTargetType(
                 userId, request.getTargetId(), request.getTargetType())) {
             throw new DuplicateReactionException(
@@ -57,8 +66,10 @@ public class LikeServiceImpl implements LikeService {
 
         Like saved = likeRepository.save(like);
 
-        // Notify the target service to increment its likesCount counter
         incrementTargetCounter(request.getTargetId(), request.getTargetType());
+
+        // ── Publish like notification ──────────────────────────────────────
+        publishLikeNotification(userId, request.getTargetId(), request.getTargetType());
 
         log.info("Reaction saved: userId={} reacted {} to {}:{}",
                 userId, request.getReactionType(),
@@ -66,6 +77,50 @@ public class LikeServiceImpl implements LikeService {
 
         return mapToResponse(saved);
     }
+
+    // ── Notification Publisher ────────────────────────────────────────────
+
+    private void publishLikeNotification(Long actorId, Long targetId, TargetType targetType) {
+        try {
+            Long ownerId = resolveOwnerId(targetId, targetType);
+
+            // Don't notify if the user liked their own content
+            if (ownerId == null || ownerId.equals(actorId)) return;
+
+            String targetLabel = targetType.name().toLowerCase();
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipientId(ownerId)
+                    .actorId(actorId)
+                    .type("LIKE")
+                    .message("Someone liked your " + targetLabel + ".")
+                    .targetId(targetId)
+                    .targetType(targetType.name())
+                    .deepLinkUrl("/" + targetLabel + "s/" + targetId)
+                    .build();
+
+            rabbitTemplate.convertAndSend(exchange, likeRoutingKey, event);
+            log.info("Like notification published: actor={} liked {}:{} owned by {}",
+                    actorId, targetType, targetId, ownerId);
+
+        } catch (Exception e) {
+            // Non-critical: reaction already saved — don't roll back over a missed notification
+            log.error("Failed to publish like notification: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Resolves the content owner's userId for a given target.
+     * STORY reactions: no notification (story authors are notified via views, not likes).
+     */
+    private Long resolveOwnerId(Long targetId, TargetType targetType) {
+        return switch (targetType) {
+            case POST    -> postServiceClient.getPostOwnerId(targetId);
+            case COMMENT -> commentServiceClient.getCommentOwnerId(targetId);
+            case STORY   -> null; // story likes don't trigger notifications
+        };
+    }
+
+    // ── Rest of the methods unchanged ─────────────────────────────────────
 
     @Override
     @Transactional
@@ -77,14 +132,10 @@ public class LikeServiceImpl implements LikeService {
                         "No reaction found for this user on " +
                                 targetType.name().toLowerCase() + " " + targetId));
 
-        likeRepository.deleteByUserIdAndTargetIdAndTargetType(
-                userId, targetId, targetType);
-
-        // Notify the target service to decrement its likesCount counter
+        likeRepository.deleteByUserIdAndTargetIdAndTargetType(userId, targetId, targetType);
         decrementTargetCounter(targetId, targetType);
 
-        log.info("Reaction removed: userId={} unreacted from {}:{}",
-                userId, targetType, targetId);
+        log.info("Reaction removed: userId={} unreacted from {}:{}", userId, targetType, targetId);
     }
 
     @Override
@@ -99,15 +150,8 @@ public class LikeServiceImpl implements LikeService {
                         "No existing reaction found. React first before changing."));
 
         ReactionType oldType = existing.getReactionType();
+        if (oldType == newReactionType) return mapToResponse(existing);
 
-        if (oldType == newReactionType) {
-            // No change needed — return current reaction as-is
-            log.debug("Reaction type unchanged for userId={} on {}:{}",
-                    userId, targetType, targetId);
-            return mapToResponse(existing);
-        }
-
-        // Update in-place — no counter change needed since total count stays the same
         existing.setReactionType(newReactionType);
         Like updated = likeRepository.save(existing);
 
@@ -117,37 +161,22 @@ public class LikeServiceImpl implements LikeService {
         return mapToResponse(updated);
     }
 
-    // ── Query Operations ─────────────────────────────────────────────────
-
     @Override
     public boolean hasReacted(Long userId, Long targetId, TargetType targetType) {
-        return likeRepository.existsByUserIdAndTargetIdAndTargetType(
-                userId, targetId, targetType);
+        return likeRepository.existsByUserIdAndTargetIdAndTargetType(userId, targetId, targetType);
     }
 
-    /**
-     * Returns the current user's reaction on a target, or null if none exists.
-     *
-     * FIX: Previously threw LikeNotFoundException (404) when no reaction existed.
-     * This caused console errors in the frontend for every post load.
-     * Now returns null data with a 200 OK so the frontend can treat it as "no reaction".
-     */
     @Override
-    public LikeResponse getUserReaction(Long userId, Long targetId,
-                                        TargetType targetType) {
+    public LikeResponse getUserReaction(Long userId, Long targetId, TargetType targetType) {
         Optional<Like> like = likeRepository
                 .findByUserIdAndTargetIdAndTargetType(userId, targetId, targetType);
-        // Return null if not found — controller will wrap in ApiResponse with null data
         return like.map(this::mapToResponse).orElse(null);
     }
 
     @Override
-    public Page<LikeResponse> getReactionsByTarget(Long targetId,
-                                                   TargetType targetType,
-                                                   Pageable pageable) {
+    public Page<LikeResponse> getReactionsByTarget(Long targetId, TargetType targetType, Pageable pageable) {
         return likeRepository
-                .findByTargetIdAndTargetTypeOrderByCreatedAtDesc(
-                        targetId, targetType, pageable)
+                .findByTargetIdAndTargetTypeOrderByCreatedAtDesc(targetId, targetType, pageable)
                 .map(this::mapToResponse);
     }
 
@@ -158,39 +187,27 @@ public class LikeServiceImpl implements LikeService {
                 .map(this::mapToResponse);
     }
 
-    // ── Count Operations ─────────────────────────────────────────────────
-
     @Override
     public long getReactionCount(Long targetId, TargetType targetType) {
         return likeRepository.countByTargetIdAndTargetType(targetId, targetType);
     }
 
     @Override
-    public long getReactionCountByType(Long targetId, TargetType targetType,
-                                       ReactionType reactionType) {
-        return likeRepository.countByTargetIdAndTargetTypeAndReactionType(
-                targetId, targetType, reactionType);
+    public long getReactionCountByType(Long targetId, TargetType targetType, ReactionType reactionType) {
+        return likeRepository.countByTargetIdAndTargetTypeAndReactionType(targetId, targetType, reactionType);
     }
 
-    // ── Reaction Summary ─────────────────────────────────────────────────
-
     @Override
-    public ReactionSummaryResponse getReactionSummary(Long targetId,
-                                                      TargetType targetType) {
-        List<Object[]> rawSummary = likeRepository
-                .getReactionSummaryRaw(targetId, targetType);
-
-        // Build the reaction map from the grouped query results
+    public ReactionSummaryResponse getReactionSummary(Long targetId, TargetType targetType) {
+        List<Object[]> rawSummary = likeRepository.getReactionSummaryRaw(targetId, targetType);
         Map<String, Long> reactionMap = new HashMap<>();
         long totalCount = 0L;
-
         for (Object[] row : rawSummary) {
             ReactionType type = (ReactionType) row[0];
             Long count = (Long) row[1];
             reactionMap.put(type.name(), count);
             totalCount += count;
         }
-
         return ReactionSummaryResponse.builder()
                 .targetId(targetId)
                 .targetType(targetType.name())
@@ -199,14 +216,6 @@ public class LikeServiceImpl implements LikeService {
                 .build();
     }
 
-    // ── Private Helpers ──────────────────────────────────────────────────
-
-    /**
-     * Route the counter increment to the correct downstream service
-     * based on the targetType.
-     * Failures are logged but do not roll back the reaction save.
-     * STORY targets have no counter service — skip silently.
-     */
     private void incrementTargetCounter(Long targetId, TargetType targetType) {
         try {
             switch (targetType) {
@@ -215,16 +224,10 @@ public class LikeServiceImpl implements LikeService {
                 case STORY   -> log.debug("Story reactions do not increment a counter service");
             }
         } catch (Exception e) {
-            log.warn("Failed to increment likesCount on {}:{} — {}",
-                    targetType, targetId, e.getMessage());
+            log.warn("Failed to increment likesCount on {}:{} — {}", targetType, targetId, e.getMessage());
         }
     }
 
-    /**
-     * Route the counter decrement to the correct downstream service.
-     * Failures are logged but do not fail the unreact operation.
-     * STORY targets have no counter service — skip silently.
-     */
     private void decrementTargetCounter(Long targetId, TargetType targetType) {
         try {
             switch (targetType) {
@@ -233,14 +236,10 @@ public class LikeServiceImpl implements LikeService {
                 case STORY   -> log.debug("Story reactions do not decrement a counter service");
             }
         } catch (Exception e) {
-            log.warn("Failed to decrement likesCount on {}:{} — {}",
-                    targetType, targetId, e.getMessage());
+            log.warn("Failed to decrement likesCount on {}:{} — {}", targetType, targetId, e.getMessage());
         }
     }
 
-    /**
-     * Map entity to response DTO.
-     */
     private LikeResponse mapToResponse(Like like) {
         return LikeResponse.builder()
                 .id(like.getId())

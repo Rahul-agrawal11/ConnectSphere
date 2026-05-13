@@ -6,33 +6,17 @@ import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFacto
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer;
+import org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.retry.interceptor.RetryOperationsInterceptor;
-import org.springframework.amqp.support.converter.DefaultJackson2JavaTypeMapper;
+
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * RabbitMQ topology for ConnectSphere notification events.
- *
- * Topology:
- *
- *   Producers (like-service, comment-service, follow-service)
- *     │
- *     ▼
- *   [connectsphere.events] ← Topic Exchange
- *     │
- *     ├── routing key: notification.#
- *     │     ▼
- *     │   [connectsphere.notification.queue]
- *     │     │ on failure (nack, no requeue)
- *     │     ▼
- *     │   [connectsphere.notification.dlq]
- */
 @Configuration
 public class RabbitMQConfig {
 
@@ -48,14 +32,10 @@ public class RabbitMQConfig {
     @Value("${app.rabbitmq.routing-keys.notification}")
     private String notificationRoutingKey;
 
-    // ── Exchange ──────────────────────────────────────────────────────────
-
     @Bean
     public TopicExchange connectSphereExchange() {
         return ExchangeBuilder.topicExchange(exchange).durable(true).build();
     }
-
-    // ── Dead Letter Queue ─────────────────────────────────────────────────
 
     @Bean
     public Queue deadLetterQueue() {
@@ -68,14 +48,12 @@ public class RabbitMQConfig {
                 .to(connectSphereExchange()).with("dlq.notification");
     }
 
-    // ── Notification Queue ────────────────────────────────────────────────
-
     @Bean
     public Queue notificationQueue() {
         return QueueBuilder.durable(notificationQueue)
                 .withArgument("x-dead-letter-exchange", exchange)
                 .withArgument("x-dead-letter-routing-key", "dlq.notification")
-                .withArgument("x-message-ttl", 1_800_000) // 30 min
+                .withArgument("x-message-ttl", 1_800_000)
                 .build();
     }
 
@@ -85,24 +63,32 @@ public class RabbitMQConfig {
                 .to(connectSphereExchange()).with(notificationRoutingKey);
     }
 
-    // ── JSON Converter ────────────────────────────────────────────────────
-
     @Bean
     public MessageConverter jsonMessageConverter() {
         Jackson2JsonMessageConverter converter = new Jackson2JsonMessageConverter();
 
         DefaultJackson2JavaTypeMapper typeMapper = new DefaultJackson2JavaTypeMapper();
-
-        // ✅ This tells RabbitMQ: ignore the sender's class name, use our own mapping
-        typeMapper.setTrustedPackages("*");
+        typeMapper.setTypePrecedence(DefaultJackson2JavaTypeMapper.TypePrecedence.TYPE_ID);
+        typeMapper.addTrustedPackages("*");
 
         Map<String, Class<?>> idClassMapping = new HashMap<>();
-        idClassMapping.put(
-                "com.connectsphere.auth.dto.event.OtpEmailEvent",  // sender's class name
-                com.connectsphere.notification.dto.OtpEmailEvent.class  // our local class
-        );
-        typeMapper.setIdClassMapping(idClassMapping);
 
+        // Auth-service OTP emails (uses FQCN as token — auth-service stamps it directly)
+        idClassMapping.put(
+                "com.connectsphere.auth.dto.event.OtpEmailEvent",
+                com.connectsphere.notification.dto.OtpEmailEvent.class
+        );
+
+        // All social notification events use the shared "notificationEvent" token.
+        // follow-service, like-service, comment-service, and media-service all
+        // publish with this same token; notification-service maps it to its own
+        // local NotificationEvent class — no cross-classpath dependency needed.
+        idClassMapping.put(
+                "notificationEvent",
+                com.connectsphere.notification.event.NotificationEvent.class
+        );
+
+        typeMapper.setIdClassMapping(idClassMapping);
         converter.setJavaTypeMapper(typeMapper);
         return converter;
     }
@@ -114,12 +100,6 @@ public class RabbitMQConfig {
         return template;
     }
 
-    // ── Per-Message Processing Retry ──────────────────────────────────────
-
-    /**
-     * Retries failed message PROCESSING up to 3 times in-memory
-     * (2s → 4s → 8s backoff) before nacking to the DLQ.
-     */
     @Bean
     public RetryOperationsInterceptor retryInterceptor() {
         return RetryInterceptorBuilder.stateless()
@@ -129,53 +109,18 @@ public class RabbitMQConfig {
                 .build();
     }
 
-    // ── Listener Container Factory ────────────────────────────────────────
-
-    /**
-     * Configures the listener container with:
-     *
-     *  1. missingQueuesFatal = false
-     *     Don't treat a missing queue as fatal on startup — the container
-     *     will retry quietly until RabbitMQ comes up and the queue exists.
-     *
-     *  2. recoveryInterval = 10 000 ms
-     *     Minimum pause between consumer restart attempts. This is the key
-     *     knob that stops the thread-per-restart storm.
-     *
-     *  3. setRecoveryRetryTemplate on the CachingConnectionFactory
-     *     Applies exponential backoff (10s → 20s → 40s → max 60s) to the
-     *     underlying TCP reconnect loop. Without this, the connection factory
-     *     retries the TCP connect on every consumer restart cycle, producing
-     *     the "Failed to check/redeclare" error every 5 s in the log.
-     *     This is the method previous fixes were missing — it wires the
-     *     RetryTemplate directly onto the factory rather than leaving it as
-     *     an unused bean.
-     *
-     *  4. retryInterceptor (per-message)
-     *     Separate from connection recovery — handles business logic failures.
-     */
     @Bean
     public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
             ConnectionFactory connectionFactory) {
-
-        // ── Build the factory
-        SimpleRabbitListenerContainerFactory factory =
-                new SimpleRabbitListenerContainerFactory();
+        SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
         factory.setMessageConverter(jsonMessageConverter());
         factory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
         factory.setConcurrentConsumers(2);
         factory.setMaxConcurrentConsumers(5);
-
-        // Don't crash if the queue is missing — wait patiently
         factory.setMissingQueuesFatal(false);
-
-        // Pause between consumer restart cycles (ms)
         factory.setRecoveryInterval(10_000L);
-
-        // Per-message retry interceptor
         factory.setAdviceChain(retryInterceptor());
-
         return factory;
     }
 }

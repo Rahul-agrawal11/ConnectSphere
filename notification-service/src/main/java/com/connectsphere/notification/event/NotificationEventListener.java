@@ -43,14 +43,25 @@ public class NotificationEventListener {
                 );
 
                 channel.basicAck(deliveryTag, false);
-                log.info("✅ OTP email sent & ack'd for: {}", otpEvent.getToEmail());
+                log.info("OTP email sent & ack'd for: {}", otpEvent.getToEmail());
                 return;
             }
 
             // ── Social Notification ────────────────────────────────────
+            // NotificationEvent uses NotificationType and NotificationTargetType enums.
+            // Publishers (like/comment/media/follow) send plain strings — Jackson maps
+            // them to enum values automatically. Ensure NotificationType and
+            // NotificationTargetType contain all values published by any service.
             NotificationEvent event = objectMapper.readValue(body, NotificationEvent.class);
-            log.info("Social notification: type={} recipientId={}",
-                    event.getType(), event.getRecipientId());
+
+            if (event.getType() == null) {
+                log.warn("Received notification event with null type, discarding. Body: {}", body);
+                channel.basicAck(deliveryTag, false); // ack to avoid DLQ loop on bad messages
+                return;
+            }
+
+            log.info("Social notification: type={} recipientId={} targetType={}",
+                    event.getType(), event.getRecipientId(), event.getTargetType());
 
             CreateNotificationRequest request = CreateNotificationRequest.builder()
                     .recipientId(event.getRecipientId())
@@ -64,10 +75,10 @@ public class NotificationEventListener {
 
             notificationService.createNotification(request);
             channel.basicAck(deliveryTag, false);
-            log.info("✅ Social notification ack'd: deliveryTag={}", deliveryTag);
+            log.info("Social notification ack'd: type={} deliveryTag={}", event.getType(), deliveryTag);
 
         } catch (Exception e) {
-            log.error("❌ Failed to process message: {}", e.getMessage(), e);
+            log.error("Failed to process message: {}", e.getMessage(), e);
             try {
                 channel.basicNack(deliveryTag, false, false);
             } catch (IOException ioEx) {

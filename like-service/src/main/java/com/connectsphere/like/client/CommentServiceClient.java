@@ -1,6 +1,7 @@
 package com.connectsphere.like.client;
 
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 
@@ -16,4 +17,11 @@ public interface CommentServiceClient {
 
     @PostMapping("/{commentId}/likes/decrement")
     void decrementLikesCount(@PathVariable("commentId") Long commentId);
+
+    /**
+     * Returns the author ID of the given comment.
+     * Used by like-service to know who to notify.
+     */
+    @GetMapping("/{commentId}/owner")
+    Long getCommentOwnerId(@PathVariable("commentId") Long commentId);
 }

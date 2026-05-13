@@ -20,12 +20,19 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
 
-  # Multipart file upload limits
   servlet:
     multipart:
       enabled: true
       max-file-size: 50MB
       max-request-size: 55MB
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: /
+    connection-timeout: 5000
 
 eureka:
   client:
@@ -37,10 +44,13 @@ eureka:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${server.port}
 
-# Storage configuration
 app:
+  rabbitmq:
+    exchange: connectsphere.events
+    routing-keys:
+      story: notification.story     # matches notification-service binding: notification.#
+
   storage:
-    # Switch to 's3' for production
     provider: local
     local:
       upload-dir: ./uploads
@@ -63,9 +73,7 @@ app:
     max-video-size-mb: 50
 
   story:
-    # Hours before a story expires
     expiry-hours: 24
-    # How often the cleanup scheduler runs (cron: every 5 minutes)
     cleanup-cron: "0 */5 * * * *"
 
 management:
@@ -76,6 +84,9 @@ management:
   endpoint:
     health:
       show-details: always
+  health:
+    rabbit:
+      enabled: false
 
 springdoc:
   api-docs:

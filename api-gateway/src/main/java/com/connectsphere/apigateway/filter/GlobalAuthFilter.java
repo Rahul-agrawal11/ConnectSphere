@@ -7,6 +7,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -52,8 +53,8 @@ public class GlobalAuthFilter implements GlobalFilter, Ordered {
 
         log.debug("Incoming request: {} {}", request.getMethod(), path);
 
-        if(isPublicRoute(path)) {
-            log.debug("Public route: - skipping JWT validation: {}", path);
+        if (isPublicRoute(path) && isPublicAccessAllowed(request)) {
+            log.debug("Public route: skipping JWT validation: {} {}", request.getMethod(), path);
             return chain.filter(exchange);
         }
 
@@ -99,6 +100,31 @@ public class GlobalAuthFilter implements GlobalFilter, Ordered {
     @Override
     public int getOrder() {
         return -1;
+    }
+
+
+    /**
+     * Public route patterns are path-based, but some patterns are read-only.
+     * Example: /api/v1/comments/* is public for GET comment lookup, but DELETE
+     * /api/v1/comments/{id} must still pass through JWT validation so the
+     * gateway can inject X-User-Id for comment-service ownership checks.
+     */
+    private boolean isPublicAccessAllowed(ServerHttpRequest request) {
+        HttpMethod method = request.getMethod();
+        String path = request.getURI().getPath();
+
+        if (method == HttpMethod.OPTIONS || method == HttpMethod.GET || method == HttpMethod.HEAD) {
+            return true;
+        }
+
+        // Auth and OAuth entry points must remain public even though they use POST/redirect flows.
+        return pathMatcher.match("/api/v1/auth/register", path)
+                || pathMatcher.match("/api/v1/auth/verify-otp", path)
+                || pathMatcher.match("/api/v1/auth/login", path)
+                || pathMatcher.match("/api/v1/auth/refresh", path)
+                || pathMatcher.match("/api/v1/auth/oauth2/**", path)
+                || pathMatcher.match("/login/oauth2/**", path)
+                || pathMatcher.match("/oauth2/**", path);
     }
 
     /**

@@ -41,6 +41,12 @@ public interface PostService {
     // Stats
     long getPostCount(Long authorId);
 
+    // Owner lookup — called by like-service to resolve notification recipient
+    Long getPostOwnerId(Long postId);
+
     // Admin
     void adminDeletePost(Long postId);
+
+    // Admin — get all posts regardless of visibility
+    Page<PostResponse> adminGetAllPosts(Pageable pageable);
 }

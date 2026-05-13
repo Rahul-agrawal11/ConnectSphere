@@ -2,12 +2,13 @@ package com.connectsphere.notification.enums;
 
 /**
  * Types of notifications supported by ConnectSphere.
- *
+ * <p>
  * LIKE      — someone reacted to your post or comment
  * COMMENT   — someone commented on your post
  * REPLY     — someone replied to your comment
  * FOLLOW    — someone started following you
  * MENTION   — someone mentioned you in a post or comment
+ * STORY     — someone you follow posted a new story
  * BROADCAST — admin platform-wide announcement
  */
 public enum NotificationType {
@@ -16,5 +17,6 @@ public enum NotificationType {
     REPLY,
     FOLLOW,
     MENTION,
+    STORY,
     BROADCAST
 }

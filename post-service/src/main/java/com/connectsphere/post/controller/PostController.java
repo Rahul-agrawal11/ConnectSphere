@@ -223,4 +223,29 @@ public class PostController {
         postService.incrementShares(postId);
         return ResponseEntity.ok().build();
     }
+
+    @Operation(summary = "[Internal] Get post owner ID — called by like-service for notification routing")
+    @GetMapping("/{postId}/owner")
+    public ResponseEntity<Long> getPostOwnerId(@PathVariable Long postId) {
+        Long ownerId = postService.getPostOwnerId(postId);
+        if (ownerId == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(ownerId);
+    }
+
+    @Operation(summary = "[ADMIN] Get all posts paginated")
+    @GetMapping("/admin/all")
+    public ResponseEntity<ApiResponse<Page<PostResponse>>> adminGetAllPosts(
+            @RequestHeader("X-User-Role") String role,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        if (!"ADMIN".equals(role)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Admin access required"));
+        }
+        Pageable pageable = PageRequest.of(page, size,
+                Sort.by("createdAt").descending());
+        return ResponseEntity.ok(
+                ApiResponse.success("All posts", postService.adminGetAllPosts(pageable)));
+    }
 }

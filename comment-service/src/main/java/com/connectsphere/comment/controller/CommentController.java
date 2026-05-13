@@ -188,4 +188,12 @@ public class CommentController {
         commentService.unlikeComment(commentId);
         return ResponseEntity.ok().build();
     }
+
+    @Operation(summary = "[Internal] Get comment owner ID — called by like-service for notification routing")
+    @GetMapping("/{commentId}/owner")
+    public ResponseEntity<Long> getCommentOwnerId(@PathVariable Long commentId) {
+        Long ownerId = commentService.getCommentOwnerId(commentId);
+        if (ownerId == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(ownerId);
+    }
 }

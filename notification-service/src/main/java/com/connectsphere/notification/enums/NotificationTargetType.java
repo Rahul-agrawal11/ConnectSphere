@@ -7,11 +7,15 @@ package com.connectsphere.notification.enums;
  * POST    → /posts/{targetId}
  * COMMENT → /posts/{postId}#comment-{targetId}
  * USER    → /profile/{targetId}
+ * STORY   → /stories/{targetId}
+ * MEDIA   → /media/{targetId}
  * SYSTEM  → no deep link (broadcast / system alerts)
  */
 public enum NotificationTargetType {
     POST,
     COMMENT,
     USER,
+    STORY,
+    MEDIA,
     SYSTEM
 }

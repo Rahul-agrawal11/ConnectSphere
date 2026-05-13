@@ -212,6 +212,15 @@ public class PostServiceImpl implements PostService {
         return postRepository.countByAuthorIdAndIsDeletedFalse(authorId);
     }
 
+    // ── Owner lookup (called by like-service for notification routing) ───
+
+    @Override
+    public Long getPostOwnerId(Long postId) {
+        return postRepository.findById(postId)
+                .map(post -> post.getAuthorId())
+                .orElse(null);
+    }
+
     // ── Admin ────────────────────────────────────────────────────────────
 
     @Override
@@ -223,6 +232,12 @@ public class PostServiceImpl implements PostService {
         post.setIsDeleted(true);
         postRepository.save(post);
         log.info("Post force-deleted by admin: id={}", postId);
+    }
+
+    @Override
+    public Page<PostResponse> adminGetAllPosts(Pageable pageable) {
+        return postRepository.findByIsDeletedFalse(pageable)
+                .map(this::mapToResponse);
     }
 
     // ── Private Helpers ──────────────────────────────────────────────────
@@ -276,4 +291,5 @@ public class PostServiceImpl implements PostService {
                 .updatedAt(post.getUpdatedAt())
                 .build();
     }
+
 }

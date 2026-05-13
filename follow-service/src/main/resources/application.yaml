@@ -20,6 +20,15 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
 
+  # ── RabbitMQ ────────────────────────────────────────────────────────────
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: /
+    connection-timeout: 5000
+
 eureka:
   client:
     register-with-eureka: true
@@ -37,6 +46,12 @@ feign:
         connectTimeout: 5000
         readTimeout: 5000
         loggerLevel: basic
+
+app:
+  rabbitmq:
+    exchange: connectsphere.events          # same exchange used by notification-service
+    routing-keys:
+      follow: notification.follow           # matches notification-service binding: notification.#
 
 management:
   endpoints:

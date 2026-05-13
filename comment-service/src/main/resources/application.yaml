@@ -20,6 +20,14 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
 
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: /
+    connection-timeout: 5000
+
 eureka:
   client:
     register-with-eureka: true
@@ -30,7 +38,6 @@ eureka:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${server.port}
 
-# Feign client config
 feign:
   client:
     config:
@@ -38,6 +45,12 @@ feign:
         connectTimeout: 5000
         readTimeout: 5000
         loggerLevel: basic
+
+app:
+  rabbitmq:
+    exchange: connectsphere.events
+    routing-keys:
+      comment: notification.comment   # matches notification-service binding: notification.#
 
 management:
   endpoints:
@@ -47,6 +60,9 @@ management:
   endpoint:
     health:
       show-details: always
+  health:
+    rabbit:
+      enabled: false
 
 springdoc:
   api-docs:

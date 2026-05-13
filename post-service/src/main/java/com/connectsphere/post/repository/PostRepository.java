@@ -68,4 +68,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @Modifying
     @Query("UPDATE Post p SET p.sharesCount = p.sharesCount + 1 WHERE p.id = :postId AND p.isDeleted = false")
     int incrementSharesCount(@Param("postId") Long postId);
+
+    // Admin: all non-deleted posts regardless of visibility
+    Page<Post> findByIsDeletedFalse(Pageable pageable);
 }

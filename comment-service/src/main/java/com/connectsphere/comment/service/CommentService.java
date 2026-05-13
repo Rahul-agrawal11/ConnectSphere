@@ -31,6 +31,9 @@ public interface CommentService {
     long getCommentCount(Long postId);
     long getTotalCommentCount(Long postId);
 
+    // Owner lookup — called by like-service to resolve notification recipient
+    Long getCommentOwnerId(Long commentId);
+
     // Admin
     void adminDeleteComment(Long commentId);
 }
