@@ -1,5 +1,6 @@
 package com.connectsphere.media.service;
 
+import com.connectsphere.media.client.FollowServiceClient;
 import com.connectsphere.media.dto.response.MediaResponse;
 import com.connectsphere.media.dto.response.StoryResponse;
 import com.connectsphere.media.entity.Media;
@@ -10,6 +11,7 @@ import com.connectsphere.media.exception.StoryNotFoundException;
 import com.connectsphere.media.exception.UnauthorizedActionException;
 import com.connectsphere.media.repository.MediaRepository;
 import com.connectsphere.media.repository.StoryRepository;
+import com.connectsphere.media.repository.StoryViewRepository;
 import com.connectsphere.media.service.impl.MediaServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.domain.*;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -39,6 +42,15 @@ class MediaServiceImplTest {
 
     @Mock
     private StorageService storageService;
+
+    @Mock
+    private StoryViewRepository storyViewRepository;
+
+    @Mock
+    private FollowServiceClient followServiceClient;
+
+    @Mock
+    private RabbitTemplate rabbitTemplate;
 
     @InjectMocks
     private MediaServiceImpl mediaService;
@@ -358,6 +370,7 @@ class MediaServiceImplTest {
         assertNull(response.getViewsCount());
         verify(storyRepository).incrementViewsCount(1L);
     }
+
 
     @Test
     void viewStory_ShouldNotIncrementViews_WhenViewerIsAuthor_AndShowViewsCount() {

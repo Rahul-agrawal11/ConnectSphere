@@ -114,9 +114,9 @@ public class LikeServiceImpl implements LikeService {
      */
     private Long resolveOwnerId(Long targetId, TargetType targetType) {
         return switch (targetType) {
-            case POST    -> postServiceClient.getPostOwnerId(targetId);
+            case POST -> postServiceClient.getPostOwnerId(targetId);
             case COMMENT -> commentServiceClient.getCommentOwnerId(targetId);
-            case STORY   -> null; // story likes don't trigger notifications
+            case STORY -> null; // story likes don't trigger notifications
         };
     }
 
@@ -170,7 +170,12 @@ public class LikeServiceImpl implements LikeService {
     public LikeResponse getUserReaction(Long userId, Long targetId, TargetType targetType) {
         Optional<Like> like = likeRepository
                 .findByUserIdAndTargetIdAndTargetType(userId, targetId, targetType);
-        return like.map(this::mapToResponse).orElse(null);
+        return likeRepository
+                .findByUserIdAndTargetIdAndTargetType(userId, targetId, targetType)
+                .map(this::mapToResponse)
+                .orElseThrow(() -> new LikeNotFoundException(
+                        "No reaction found for user " + userId +
+                                " on " + targetType.name().toLowerCase() + " " + targetId));
     }
 
     @Override
@@ -219,9 +224,9 @@ public class LikeServiceImpl implements LikeService {
     private void incrementTargetCounter(Long targetId, TargetType targetType) {
         try {
             switch (targetType) {
-                case POST    -> postServiceClient.incrementLikesCount(targetId);
+                case POST -> postServiceClient.incrementLikesCount(targetId);
                 case COMMENT -> commentServiceClient.incrementLikesCount(targetId);
-                case STORY   -> log.debug("Story reactions do not increment a counter service");
+                case STORY -> log.debug("Story reactions do not increment a counter service");
             }
         } catch (Exception e) {
             log.warn("Failed to increment likesCount on {}:{} — {}", targetType, targetId, e.getMessage());
@@ -231,9 +236,9 @@ public class LikeServiceImpl implements LikeService {
     private void decrementTargetCounter(Long targetId, TargetType targetType) {
         try {
             switch (targetType) {
-                case POST    -> postServiceClient.decrementLikesCount(targetId);
+                case POST -> postServiceClient.decrementLikesCount(targetId);
                 case COMMENT -> commentServiceClient.decrementLikesCount(targetId);
-                case STORY   -> log.debug("Story reactions do not decrement a counter service");
+                case STORY -> log.debug("Story reactions do not decrement a counter service");
             }
         } catch (Exception e) {
             log.warn("Failed to decrement likesCount on {}:{} — {}", targetType, targetId, e.getMessage());

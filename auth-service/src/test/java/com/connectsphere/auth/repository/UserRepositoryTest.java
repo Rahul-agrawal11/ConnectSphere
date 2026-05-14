@@ -9,13 +9,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@ActiveProfiles("test")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
 class UserRepositoryTest {
 
     @Autowired
@@ -23,8 +25,8 @@ class UserRepositoryTest {
 
     private User createUser() {
         return User.builder()
-                .username("rahul011")
-                .email("rahul@gmail.com")
+                .username("rahul11")
+                .email("rahul11@gmail.com")
                 .fullName("Rahul Agrawal")
                 .passwordHash("encodedPassword")
                 .role(Role.USER)
@@ -41,7 +43,7 @@ class UserRepositoryTest {
         Optional<User> found = userRepository.findByEmail(savedUser.getEmail());
 
         assertThat(found).isPresent();
-        assertThat(found.get().getUsername()).isEqualTo("rahul011");
+        assertThat(found.get().getUsername()).isEqualTo("rahul11");
     }
 
     @Test
@@ -52,7 +54,7 @@ class UserRepositoryTest {
         Optional<User> found = userRepository.findByUsername(savedUser.getUsername());
 
         assertThat(found).isPresent();
-        assertThat(found.get().getEmail()).isEqualTo("rahul@gmail.com");
+        assertThat(found.get().getEmail()).isEqualTo("rahul11@gmail.com");
     }
 
     @Test
@@ -60,7 +62,7 @@ class UserRepositoryTest {
     void existsByEmail_ShouldReturnTrue() {
         userRepository.save(createUser());
 
-        boolean exists = userRepository.existsByEmail("rahul@gmail.com");
+        boolean exists = userRepository.existsByEmail("rahul11@gmail.com");
 
         assertThat(exists).isTrue();
     }
@@ -70,7 +72,7 @@ class UserRepositoryTest {
     void existsByUsername_ShouldReturnTrue() {
         userRepository.save(createUser());
 
-        boolean exists = userRepository.existsByUsername("rahul011");
+        boolean exists = userRepository.existsByUsername("rahul11");
 
         assertThat(exists).isTrue();
     }
