@@ -19,7 +19,7 @@ WORKDIR /app
 # Create non-root user for security
 RUN addgroup -S connectsphere && adduser -S connectsphere -G connectsphere
 
-COPY --from=builder /app/target/service-registry-1.0.0.jar app.jar
+COPY --from=builder /app/target/*.jar app.jar
 
 RUN chown connectsphere:connectsphere app.jar
 

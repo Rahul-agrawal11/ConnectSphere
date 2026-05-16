@@ -8,7 +8,7 @@ RUN mvn clean package -DskipTests -B
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 RUN addgroup -S connectsphere && adduser -S connectsphere -G connectsphere
-COPY --from=builder /app/target/auth-service-1.0.0.jar app.jar
+COPY --from=builder /app/target/*.jar app.jar
 RUN chown connectsphere:connectsphere app.jar
 USER connectsphere
 EXPOSE 8081

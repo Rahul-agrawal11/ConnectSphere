@@ -26,7 +26,7 @@ RUN apk add --no-cache curl
 RUN addgroup -S connectsphere && adduser -S connectsphere -G connectsphere
 
 # Copy jar from builder
-COPY --from=builder /app/target/notification-service-1.0.0.jar app.jar
+COPY --from=builder /app/target/*.jar app.jar
 
 RUN chown connectsphere:connectsphere app.jar
 
