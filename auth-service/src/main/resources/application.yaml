@@ -1,12 +1,12 @@
 server:
-  port: 8081
+  port: ${PORT}
 
 spring:
   application:
     name: auth-service
 
   datasource:
-    url: jdbc:mysql://localhost:3306/cs_auth_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    url: jdbc:mysql://localhost:${DATABASE_PORT}/cs_auth_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -22,14 +22,14 @@ spring:
 
   rabbitmq:
     host: localhost
-    port: 5672
+    port: ${RABBITMQ_PORT}
     username: ${RABBITMQ_USERNAME}
     password: ${RABBITMQ_PASSWORD}
 
   data:
     redis:
       host: localhost
-      port: 6379
+      port: ${REDIS_PORT}
 
   # OAuth2 Social Login
   security:

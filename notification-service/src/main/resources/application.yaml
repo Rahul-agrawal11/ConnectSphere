@@ -1,5 +1,5 @@
 server:
-  port: 8086
+  port: ${PORT}
 
 spring:
   application:
@@ -11,7 +11,7 @@ spring:
         enabled: false
 
   datasource:
-    url: jdbc:mysql://localhost:3306/cs_notification_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    url: jdbc:mysql://localhost:${DATABASE_PORT}/cs_notification_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -27,7 +27,7 @@ spring:
 
   rabbitmq:
     host: localhost
-    port: 5672
+    port: ${RABBITMQ_PORT}
     username: ${RABBITMQ_USERNAME}
     password: ${RABBITMQ_PASSWORD}
     virtual-host: /
@@ -40,7 +40,7 @@ spring:
 
   mail:
     host: smtp.gmail.com
-    port: 587
+    port: ${MAIL_PORT}
     username: ${GMAIL_USERNAME}
     password: ${GMAIL_PASSWORD}
     properties:

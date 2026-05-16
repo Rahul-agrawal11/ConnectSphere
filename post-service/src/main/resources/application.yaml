@@ -1,12 +1,12 @@
 server:
-  port: 8082
+  port: ${PORT}
 
 spring:
   application:
     name: post-service
 
   datasource:
-    url: jdbc:mysql://localhost:3306/cs_post_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    url: jdbc:mysql://localhost:${DATABASE_PORT}/cs_post_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
