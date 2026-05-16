@@ -7,12 +7,13 @@ spring:
 
 eureka:
   instance:
-    hostname: localhost
+    hostname: ${EUREKA_HOSTNAME:service-registry}
+    prefer-ip-address: false
   client:
     register-with-eureka: false
     fetch-registry: false
     service-url:
-      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/
+      defaultZone: ${EUREKA_SERVER_URL:http://${EUREKA_HOSTNAME:service-registry}:${PORT:8761}/eureka/}
 
   server:
     eviction-interval-timer-in-ms: 5000
@@ -23,16 +24,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, info, matrics
+        include: health,info,metrics
   endpoint:
     health:
       show-details: always
   info:
     env:
       enabled: true
+
 info:
   app:
     name: ConnectSphere Service Registry
     version: 1.0.0
     description: Eureka Server for ConnectSphere Microservices Platform
-

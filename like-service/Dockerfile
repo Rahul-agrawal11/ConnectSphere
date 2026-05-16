@@ -13,5 +13,5 @@ RUN chown connectsphere:connectsphere app.jar
 USER connectsphere
 EXPOSE 8084
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD wget -qO- http://localhost:8084/actuator/health || exit 1
+  CMD wget -qO- http://localhost:${PORT:-8084}/actuator/health || exit 1
 ENTRYPOINT ["java", "-Xms256m", "-Xmx512m", "-jar", "app.jar"]

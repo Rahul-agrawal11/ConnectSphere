@@ -1,12 +1,12 @@
 server:
-  port: ${PORT}
+  port: ${PORT:8087}
 
 spring:
   application:
     name: media-service
 
   datasource:
-    url: jdbc:mysql://localhost:${DATABASE_PORT}/cs_media_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -27,8 +27,8 @@ spring:
       max-request-size: 55MB
 
   rabbitmq:
-    host: localhost
-    port: ${RABBITMQ_PORT}
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME}
     password: ${RABBITMQ_PASSWORD}
     virtual-host: /
@@ -39,10 +39,10 @@ eureka:
     register-with-eureka: true
     fetch-registry: true
     service-url:
-      defaultZone: http://localhost:${EUREKA_PORT}/eureka/
+      defaultZone: ${EUREKA_SERVER_URL}
   instance:
     prefer-ip-address: true
-    instance-id: ${spring.application.name}:${server.port}
+    instance-id: ${spring.application.name}:${PORT:8087}
 
 app:
   rabbitmq:
@@ -54,7 +54,7 @@ app:
     provider: local
     local:
       upload-dir: ./uploads
-      base-url: http://localhost:${PORT}/files
+      base-url: http://localhost:${PORT:8087}/files
     s3:
       bucket-name: connectsphere-media
       region: ap-south-1

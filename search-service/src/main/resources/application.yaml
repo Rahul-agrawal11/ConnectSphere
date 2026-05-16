@@ -1,12 +1,12 @@
 server:
-  port: ${PORT}
+  port: ${PORT:8088}
 
 spring:
   application:
     name: search-service
 
   datasource:
-    url: jdbc:mysql://localhost:${DATABASE_PORT}/cs_search_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -25,10 +25,10 @@ eureka:
     register-with-eureka: true
     fetch-registry: true
     service-url:
-      defaultZone: http://localhost:${EUREKA_PORT}/eureka/
+      defaultZone: ${EUREKA_SERVER_URL}
   instance:
     prefer-ip-address: true
-    instance-id: ${spring.application.name}:${server.port}
+    instance-id: ${spring.application.name}:${PORT:8088}
 
 feign:
   client:
