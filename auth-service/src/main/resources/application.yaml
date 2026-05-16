@@ -1,0 +1,95 @@
+server:
+  port: ${PORT:8081}
+
+spring:
+  application:
+    name: auth-service
+
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+
+  # OAuth2 Social Login
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id:  ${GOOGLE_CLIENT_ID}
+            client-secret:  ${GOOGLE_CLIENT_SECRET}
+            scope: email, profile
+            redirect-uri: ${GOOGLE_REDIRECT_URI}
+
+          github:
+            client-id:  ${GITHUB_CLIENT_ID}
+            client-secret:  ${GITHUB_CLIENT_SECRET}
+            scope: user:email, read:user
+            redirect-uri: ${GITHUB_REDIRECT_URI}
+
+eureka:
+  client:
+    webclient:
+      enabled: false
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL}
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${PORT:8081}
+
+app:
+  rabbitmq:
+    exchange: connectsphere.events
+    routing-keys:
+      otp: notification.otp
+
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-ms: 86400000        # 24 hours
+    refresh-expiration-ms: 604800000  # 7 days
+  oauth2:
+    # After OAuth2 success, redirect to this frontend URL with token
+    authorized-redirect-uri: ${REDIRECT_URI}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.connectsphere.auth: DEBUG
+    org.springframework.security: INFO
