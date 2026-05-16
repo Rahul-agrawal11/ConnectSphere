@@ -1,0 +1,178 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      # Enables Eureka-based service discovery for lb:// URIs
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+      routes:
+        # ── Auth Service ──────────────────────────────────────────────
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/v1/auth/**
+
+        # ── OAuth2 callback — Spring internal path ────────────────────
+        - id: auth-service-oauth2
+          uri: lb://auth-service
+          predicates:
+            - Path=/login/oauth2/**, /oauth2/**
+
+        # ── Post Service ──────────────────────────────────────────────
+        - id: post-service
+          uri: lb://post-service
+          predicates:
+            - Path=/api/v1/posts/**
+
+        # ── Comment Service ───────────────────────────────────────────
+        - id: comment-service
+          uri: lb://comment-service
+          predicates:
+            - Path=/api/v1/comments/**
+
+        # ── Like Service ──────────────────────────────────────────────
+        - id: like-service
+          uri: lb://like-service
+          predicates:
+            - Path=/api/v1/likes/**
+
+        # ── Follow Service ────────────────────────────────────────────
+        - id: follow-service
+          uri: lb://follow-service
+          predicates:
+            - Path=/api/v1/follows/**
+
+        # ── Notification Service ──────────────────────────────────────
+        - id: notification-service
+          uri: lb://notification-service
+          predicates:
+            - Path=/api/v1/notifications/**
+
+        # ── Media Service ─────────────────────────────────────────────
+        - id: media-service
+          uri: lb://media-service
+          predicates:
+            - Path=/api/v1/media/**,/api/v1/stories/**,/files/**
+
+        # ── Search Service ────────────────────────────────────────────
+        - id: search-service
+          uri: lb://search-service
+          predicates:
+            - Path=/api/v1/search/**,/api/v1/hashtags/**
+
+      # Default filters applied to ALL routes
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+
+# Eureka registration
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL}
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${PORT:8080}
+
+# JWT secret — must match the same value used by auth-service.
+# Override via JWT_SECRET environment variable in production.
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-ms: 86400000  # 24 hours
+
+  gateway:
+    public-routes:
+      # ── Auth public endpoints ──────────────────────────────────────
+      - /api/v1/auth/register
+      - /api/v1/auth/verify-otp
+      - /api/v1/auth/login
+      - /api/v1/auth/refresh
+      # Search and public profile lookup — guests can search/view profiles
+      - /api/v1/auth/search
+      - /api/v1/auth/profile/*
+      # OAuth2 flow paths
+      - /api/v1/auth/oauth2/**
+      - /login/oauth2/**
+      - /oauth2/**
+
+      # ── Post public endpoints ──────────────────────────────────────
+      # Public feed (home page — no auth needed)
+      - /api/v1/posts/public
+      # FIX: single post view — guests can read PUBLIC-visibility posts.
+      # PostController uses required=false for X-User-Id on this endpoint.
+      - /api/v1/posts/*
+      # FIX: user post listing — Profile page renders for guests.
+      # PostController uses required=false for X-User-Id on this endpoint.
+      - /api/v1/posts/user/**
+      # Keyword search is public
+      - /api/v1/posts/search
+      # Post count on profile page
+      - /api/v1/posts/count/**
+
+      # ── Comment read endpoints (public) ───────────────────────────
+      # Comments on PUBLIC posts are readable by guests
+      - /api/v1/comments/post/**
+      # Individual comment lookup (for deep links)
+      - /api/v1/comments/*
+
+      # ── Like read endpoints (public) ──────────────────────────────
+      # Emoji reaction bar summary — visible to guests on public posts
+      - /api/v1/likes/summary
+      - /api/v1/likes/count
+      - /api/v1/likes/count/by-type
+      # Reaction list by target (for "N people reacted" popup)
+      - /api/v1/likes/target
+      # FIX: has-reacted is called by PostCard for guests too.
+      # LikeController returns false for null userId (required=false on this endpoint).
+      - /api/v1/likes/has-reacted
+
+      # ── Follow public endpoints ───────────────────────────────────
+      # Follower/following lists and counts — visible on public profiles
+      - /api/v1/follows/*/followers
+      - /api/v1/follows/*/following
+      - /api/v1/follows/*/counts
+      - /api/v1/follows/*/followers/count
+      - /api/v1/follows/*/following/count
+      # Internal endpoint — only accessible within cluster
+      - /api/v1/follows/internal/**
+
+      # ── Search / Hashtag public endpoints ─────────────────────────
+      - /api/v1/search/posts
+      - /api/v1/search/users
+      - /api/v1/search/hashtags
+      - /api/v1/hashtags/trending
+      - /api/v1/hashtags/**
+
+      # ── Stories public reads ──────────────────────────────────────
+      # Story listing per user — profile page shows story rings for guests.
+      # StoryController uses required=false for X-User-Id on this endpoint (fixed).
+      - /api/v1/stories/user/**
+
+      # ── Actuator ─────────────────────────────────────────────────
+      - /actuator/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, gateway, metrics
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    com.connectsphere.apigateway: DEBUG
