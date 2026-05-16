@@ -1,0 +1,41 @@
+JWT_SECRET: mySuperSecretJwtKeyForConnectSphereApplication123456789
+JWT_EXPIRATION: 3600000
+
+DATABASE_USERNAME: sa
+DATABASE_PASSWORD: ""
+
+GOOGLE_CLIENT_ID: dummy-google-client-id
+GOOGLE_CLIENT_SECRET: dummy-google-client-secret
+GITHUB_CLIENT_ID: dummy-github-client-id
+GITHUB_CLIENT_SECRET: dummy-github-client-secret
+
+REDIRECT_URI: http://localhost:8080/login/oauth2/code/
+FRONTEND_URL: http://localhost:3000
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: true
+
+  cloud:
+    discovery:
+      enabled: false
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false

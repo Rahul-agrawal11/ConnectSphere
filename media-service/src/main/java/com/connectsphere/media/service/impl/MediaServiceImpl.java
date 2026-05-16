@@ -43,8 +43,11 @@ public class MediaServiceImpl implements MediaService {
     private final StoryViewRepository storyViewRepository;
     private final StorageService storageService;
 
-    private final FollowServiceClient followServiceClient;  // ← new
-    private final RabbitTemplate rabbitTemplate;       // ← new
+    private final FollowServiceClient followServiceClient;
+    private final RabbitTemplate rabbitTemplate;
+
+    private static final String STORY_NOT_FOUND_MESSAGE =
+            "Story not found or has expired: ";
 
     @Value("${app.rabbitmq.exchange}")
     private String exchange;
@@ -164,7 +167,7 @@ public class MediaServiceImpl implements MediaService {
     public StoryResponse getStoryById(Long storyId, Long requesterId) {
         Story story = storyRepository.findByIdAndIsActiveTrue(storyId)
                 .orElseThrow(() -> new StoryNotFoundException(
-                        "Story not found or has expired: " + storyId));
+                        STORY_NOT_FOUND_MESSAGE + storyId));
         return mapToStoryResponse(story, requesterId);
     }
 
@@ -201,7 +204,7 @@ public class MediaServiceImpl implements MediaService {
     public StoryResponse viewStory(Long storyId, Long viewerId) {
         Story story = storyRepository.findByIdAndIsActiveTrue(storyId)
                 .orElseThrow(() -> new StoryNotFoundException(
-                        "Story not found or has expired: " + storyId));
+                        STORY_NOT_FOUND_MESSAGE + storyId));
 
         // Don't count author's own views
         if (!story.getAuthorId().equals(viewerId)) {
@@ -237,7 +240,7 @@ public class MediaServiceImpl implements MediaService {
     public StoryViewersResponse getStoryViewers(Long storyId, Long requesterId) {
         Story story = storyRepository.findByIdAndIsActiveTrue(storyId)
                 .orElseThrow(() -> new StoryNotFoundException(
-                        "Story not found or has expired: " + storyId));
+                        STORY_NOT_FOUND_MESSAGE + storyId));
 
         if (!story.getAuthorId().equals(requesterId)) {
             throw new UnauthorizedActionException(
@@ -266,7 +269,7 @@ public class MediaServiceImpl implements MediaService {
     public void deleteStory(Long storyId, Long requesterId) {
         Story story = storyRepository.findByIdAndIsActiveTrue(storyId)
                 .orElseThrow(() -> new StoryNotFoundException(
-                        "Story not found or has expired: " + storyId));
+                        STORY_NOT_FOUND_MESSAGE + storyId));
         if (!story.getAuthorId().equals(requesterId)) {
             throw new UnauthorizedActionException(
                     "You are not allowed to delete this story.");
@@ -315,23 +318,7 @@ public class MediaServiceImpl implements MediaService {
             if (followerIds == null || followerIds.isEmpty()) return;
 
             for (Long followerId : followerIds) {
-                try {
-                    NotificationEvent event = NotificationEvent.builder()
-                            .recipientId(followerId)
-                            .actorId(authorId)
-                            .type("STORY")
-                            .message("Someone you follow posted a new story.")
-                            .targetId(storyId)
-                            .targetType("STORY")
-                            .deepLinkUrl("/stories/" + storyId)
-                            .build();
-
-                    rabbitTemplate.convertAndSend(exchange, storyRoutingKey, event);
-
-                } catch (Exception e) {
-                    log.error("Failed to publish story notification to followerId={}: {}",
-                            followerId, e.getMessage());
-                }
+                publishStoryNotificationToFollower(followerId, authorId, storyId);
             }
 
             log.info("Story notifications published: storyId={} authorId={} followers={}",
@@ -342,7 +329,6 @@ public class MediaServiceImpl implements MediaService {
         }
     }
 
-
     private MediaResponse mapToMediaResponse(Media m) {
         return MediaResponse.builder()
                 .id(m.getId()).uploaderId(m.getUploaderId()).url(m.getUrl())
@@ -350,6 +336,32 @@ public class MediaServiceImpl implements MediaService {
                 .mimeType(m.getMimeType()).originalFilename(m.getOriginalFilename())
                 .linkedPostId(m.getLinkedPostId()).uploadedAt(m.getUploadedAt())
                 .build();
+    }
+
+    private void publishStoryNotificationToFollower(
+            Long followerId,
+            Long authorId,
+            Long storyId) {
+
+        try {
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipientId(followerId)
+                    .actorId(authorId)
+                    .type("STORY")
+                    .message("Someone you follow posted a new story.")
+                    .targetId(storyId)
+                    .targetType("STORY")
+                    .build();
+
+            rabbitTemplate.convertAndSend(
+                    exchange,
+                    storyRoutingKey,
+                    event
+            );
+        } catch (Exception ex) {
+            log.error("Failed to publish story notification to followerId={}",
+                    followerId, ex);
+        }
     }
 
     private StoryResponse mapToStoryResponse(Story story, Long requesterId) {

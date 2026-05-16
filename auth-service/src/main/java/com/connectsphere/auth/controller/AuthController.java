@@ -41,7 +41,6 @@ public class AuthController {
     public ResponseEntity<ApiResponse<String>> register(
             @Valid @RequestBody RegisterRequest request) {
 
-//        UserProfileResponse profile = authService.register(request);
         String message = authService.sendOtp(request);
         return ResponseEntity.ok(ApiResponse.success(message));
     }

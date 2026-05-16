@@ -127,6 +127,21 @@ public class GlobalExceptionHandler {
                         request.getRequestURI()));
     }
 
+    @ExceptionHandler(StorageException.class)
+    public ResponseEntity<Map<String, Object>> handleStorageException(
+            StorageException ex,
+            HttpServletRequest request) {
+
+        log.error("Storage error on {}: {}",
+                request.getRequestURI(),
+                ex.getMessage());
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                buildBody(HttpStatus.INTERNAL_SERVER_ERROR,
+                        ex.getMessage(),
+                        request.getRequestURI()));
+    }
+
     // ── Catch-All ────────────────────────────────────────────────────────
 
     @ExceptionHandler(Exception.class)

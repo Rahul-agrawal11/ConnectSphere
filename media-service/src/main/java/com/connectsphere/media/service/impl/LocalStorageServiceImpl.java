@@ -1,5 +1,6 @@
 package com.connectsphere.media.service.impl;
 
+import com.connectsphere.media.exception.StorageException;
 import com.connectsphere.media.service.StorageService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
@@ -52,7 +53,7 @@ public class LocalStorageServiceImpl implements StorageService {
                 log.info("Created upload directory: {}", uploadPath.toAbsolutePath());
             }
         } catch (IOException e) {
-            throw new RuntimeException(
+            throw new StorageException(
                     "Could not create upload directory: " + uploadDir, e);
         }
     }
@@ -89,7 +90,7 @@ public class LocalStorageServiceImpl implements StorageService {
             return new StorageResult(publicUrl, storageKey);
 
         } catch (IOException e) {
-            throw new RuntimeException("Failed to store file: " + e.getMessage(), e);
+            throw new StorageException("Failed to store file: " + e.getMessage(), e);
         }
     }
 

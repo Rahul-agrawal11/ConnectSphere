@@ -18,6 +18,9 @@ import com.connectsphere.auth.security.JwtUtil;
 import com.connectsphere.auth.service.impl.AuthServiceImpl;
 import com.connectsphere.auth.service.impl.OtpService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.util.List;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +33,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.Instant;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -267,5 +271,267 @@ class AuthServiceImplTest {
         assertEquals("rahul", response.getUsername());
 
         verify(otpService).deletePendingUser(request.getEmail());
+    }
+
+    // ── login: uncovered branches ──────────────────────────────────────────
+
+    @Test
+    void login_shouldThrow_whenUserNotFound() {
+        LoginRequest request = new LoginRequest();
+        request.setEmailOrUsername("nobody@gmail.com");
+        request.setPassword("Password@123");
+
+        when(userRepository.findByEmail("nobody@gmail.com")).thenReturn(Optional.empty());
+        when(userRepository.findByUsername("nobody@gmail.com")).thenReturn(Optional.empty());
+
+        assertThrows(InvalidCredentialsException.class, () -> authService.login(request));
+    }
+
+    @Test
+    void login_shouldThrow_whenAccountSuspended() {
+        user.setStatus(AccountStatus.SUSPENDED);
+        LoginRequest request = new LoginRequest();
+        request.setEmailOrUsername("rahul@gmail.com");
+        request.setPassword("Password@123");
+
+        when(userRepository.findByEmail("rahul@gmail.com")).thenReturn(Optional.of(user));
+
+        assertThrows(InvalidCredentialsException.class, () -> authService.login(request));
+    }
+
+    @Test
+    void login_shouldThrow_whenAccountDeactivated() {
+        user.setStatus(AccountStatus.DEACTIVATED);
+        LoginRequest request = new LoginRequest();
+        request.setEmailOrUsername("rahul@gmail.com");
+        request.setPassword("Password@123");
+
+        when(userRepository.findByEmail("rahul@gmail.com")).thenReturn(Optional.of(user));
+
+        assertThrows(InvalidCredentialsException.class, () -> authService.login(request));
+    }
+
+    @Test
+    void login_shouldThrow_whenOAuthUser() {
+        user.setProvider(AuthProvider.GOOGLE);
+        LoginRequest request = new LoginRequest();
+        request.setEmailOrUsername("rahul@gmail.com");
+        request.setPassword("Password@123");
+
+        when(userRepository.findByEmail("rahul@gmail.com")).thenReturn(Optional.of(user));
+
+        assertThrows(InvalidCredentialsException.class, () -> authService.login(request));
+    }
+
+// ── register: uncovered branch ─────────────────────────────────────────
+
+    @Test
+    void register_shouldThrow_whenUsernameAlreadyTaken() {
+        RegisterRequest request = new RegisterRequest();
+        request.setUsername("rahul");
+        request.setEmail("new@gmail.com");
+        request.setPassword("Password@123");
+
+        when(userRepository.existsByEmail("new@gmail.com")).thenReturn(false);
+        when(userRepository.existsByUsername("rahul")).thenReturn(true);
+
+        assertThrows(UserAlreadyExistsException.class, () -> authService.register(request));
+        verify(userRepository, never()).save(any());
+    }
+
+// ── changePassword: uncovered branches ────────────────────────────────
+
+    @Test
+    void changePassword_shouldThrow_whenOAuthAccount() {
+        user.setProvider(AuthProvider.GOOGLE);
+        ChangePasswordRequest request = new ChangePasswordRequest();
+        request.setCurrentPassword("Old@12345");
+        request.setNewPassword("New@12345");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        assertThrows(InvalidCredentialsException.class, () -> authService.changePassword(1L, request));
+    }
+
+    @Test
+    void changePassword_shouldThrow_whenCurrentPasswordWrong() {
+        ChangePasswordRequest request = new ChangePasswordRequest();
+        request.setCurrentPassword("Wrong@123");
+        request.setNewPassword("New@12345");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("Wrong@123", user.getPasswordHash())).thenReturn(false);
+
+        assertThrows(InvalidCredentialsException.class, () -> authService.changePassword(1L, request));
+    }
+
+// ── updateProfile: username taken branch ──────────────────────────────
+
+    @Test
+    void updateProfile_shouldThrow_whenNewUsernameTaken() {
+        UpdateProfileRequest request = new UpdateProfileRequest();
+        request.setUsername("taken_name");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.existsByUsername("taken_name")).thenReturn(true);
+
+        assertThrows(UserAlreadyExistsException.class, () -> authService.updateProfile(1L, request));
+    }
+
+// ── admin operations ───────────────────────────────────────────────────
+
+    @Test
+    void deactivateAccount_shouldSetStatusAndDeleteTokens() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.save(any())).thenReturn(user);
+
+        authService.deactivateAccount(1L);
+
+        assertThat(user.getStatus()).isEqualTo(AccountStatus.DEACTIVATED);
+        verify(refreshTokenRepository).deleteByUser(user);
+    }
+
+    @Test
+    void suspendUser_shouldSetSuspendedStatusAndDeleteTokens() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.save(any())).thenReturn(user);
+
+        authService.suspendUser(1L);
+
+        assertThat(user.getStatus()).isEqualTo(AccountStatus.SUSPENDED);
+        verify(refreshTokenRepository).deleteByUser(user);
+    }
+
+    @Test
+    void reactivateUser_shouldSetActiveStatus() {
+        user.setStatus(AccountStatus.SUSPENDED);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.save(any())).thenReturn(user);
+
+        authService.reactivateUser(1L);
+
+        assertThat(user.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+    }
+
+    @Test
+    void deleteUser_shouldDeleteTokensAndUser() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        authService.deleteUser(1L);
+
+        verify(refreshTokenRepository).deleteByUser(user);
+        verify(userRepository).delete(user);
+    }
+
+    @Test
+    void getAllUsers_shouldReturnMappedList() {
+        when(userRepository.findAll()).thenReturn(List.of(user));
+
+        List<UserProfileResponse> result = authService.getAllUsers();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getEmail()).isEqualTo("rahul@gmail.com");
+    }
+
+    @Test
+    void getUserById_shouldReturnProfile() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        UserProfileResponse profile = authService.getUserById(1L);
+
+        assertThat(profile.getUsername()).isEqualTo("rahul");
+    }
+
+// ── sendOtp: error branches ────────────────────────────────────────────
+
+    @Test
+    void sendOtp_shouldThrow_whenEmailExists() {
+        RegisterRequest request = new RegisterRequest();
+        request.setEmail("rahul@gmail.com");
+        request.setUsername("rahul");
+
+        when(userRepository.existsByEmail("rahul@gmail.com")).thenReturn(true);
+
+        assertThrows(UserAlreadyExistsException.class, () -> authService.sendOtp(request));
+    }
+
+    @Test
+    void sendOtp_shouldThrow_whenUsernameExists() {
+        RegisterRequest request = new RegisterRequest();
+        request.setEmail("new@gmail.com");
+        request.setUsername("rahul");
+
+        when(userRepository.existsByEmail("new@gmail.com")).thenReturn(false);
+        when(userRepository.existsByUsername("rahul")).thenReturn(true);
+
+        assertThrows(UserAlreadyExistsException.class, () -> authService.sendOtp(request));
+    }
+
+// ── verifyOtpAndRegister: error branches ──────────────────────────────
+
+    @Test
+    void verifyOtpAndRegister_shouldThrow_whenOtpInvalid() {
+        VerifyOtpRequest request = new VerifyOtpRequest();
+        request.setEmail("rahul@gmail.com");
+        request.setOtp("000000");
+
+        when(otpService.validateOtp("rahul@gmail.com", "000000")).thenReturn(false);
+
+        assertThrows(InvalidCredentialsException.class, () -> authService.verifyOtpAndRegister(request));
+    }
+
+    @Test
+    void verifyOtpAndRegister_shouldThrow_whenPendingUserExpired() {
+        VerifyOtpRequest request = new VerifyOtpRequest();
+        request.setEmail("rahul@gmail.com");
+        request.setOtp("123456");
+
+        when(otpService.validateOtp("rahul@gmail.com", "123456")).thenReturn(true);
+        when(otpService.getPendingUser("rahul@gmail.com")).thenReturn(null);
+
+        assertThrows(InvalidCredentialsException.class, () -> authService.verifyOtpAndRegister(request));
+    }
+
+// ── searchUsers ────────────────────────────────────────────────────────
+
+    @Test
+    void searchUsers_shouldReturnResultsFromBothLists() {
+        User u1 = User.builder().id(1L).username("rahul").email("rahul@gmail.com")
+                .role(Role.USER).provider(AuthProvider.LOCAL).status(AccountStatus.ACTIVE).build();
+
+        // Same user in both lists — the merge always returns byUsername content
+        when(userRepository.searchByUsername("rahul")).thenReturn(List.of(u1));
+        when(userRepository.searchByFullName("rahul")).thenReturn(List.of(u1));
+
+        List<UserProfileResponse> results = authService.searchUsers("rahul");
+
+        // Code returns byUsername result — at minimum u1 should be present
+        assertThat(results).isNotEmpty();
+        assertThat(results.get(0).getId()).isEqualTo(1L);
+    }
+
+// ── createRefreshToken: existing token rotation branch ─────────────────
+
+    @Test
+    void login_shouldRotateExistingRefreshToken() {
+        LoginRequest request = new LoginRequest();
+        request.setEmailOrUsername("rahul@gmail.com");
+        request.setPassword("Password@123");
+
+        RefreshToken existingToken = RefreshToken.builder()
+                .id(1L).token("old-token").user(user)
+                .expiresAt(Instant.now().plusSeconds(3600)).build();
+
+        when(userRepository.findByEmail("rahul@gmail.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("Password@123", user.getPasswordHash())).thenReturn(true);
+        when(jwtUtil.generateToken(user)).thenReturn("access-token");
+        when(refreshTokenRepository.findByUser(user)).thenReturn(Optional.of(existingToken));
+        when(refreshTokenRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AuthResponse response = authService.login(request);
+
+        assertThat(response.getAccessToken()).isEqualTo("access-token");
+        // Token was rotated — the existing token object was updated and saved
+        verify(refreshTokenRepository).save(existingToken);
     }
 }

@@ -12,22 +12,23 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import jakarta.servlet.http.HttpServletRequest;
+
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
  * Global exception handler for like-service.
- *
+ * <p>
  * FIX 1: Added MissingRequestHeaderException — returns 400 instead of 500
- *   when a required @RequestHeader (e.g. X-User-Id) is absent.
- *
+ * when a required @RequestHeader (e.g. X-User-Id) is absent.
+ * <p>
  * FIX 2: Added MissingServletRequestParameterException — returns 400 instead
- *   of 500 when required @RequestParam values (targetId, targetType) are absent.
- *
+ * of 500 when required @RequestParam values (targetId, targetType) are absent.
+ * <p>
  * FIX 3: Added MethodArgumentTypeMismatchException — returns 400 with a clear
- *   message when an enum value like TargetType or ReactionType is invalid
- *   (e.g. passing 'STORY' before the enum was updated, or a typo).
+ * message when an enum value like TargetType or ReactionType is invalid
+ * (e.g. passing 'STORY' before the enum was updated, or a typo).
  */
 @Slf4j
 @RestControllerAdvice
@@ -94,19 +95,26 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<Map<String, Object>> handleTypeMismatch(
-            MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+            MethodArgumentTypeMismatchException ex,
+            HttpServletRequest request) {
 
         String message;
-        if (ex.getRequiredType() != null && ex.getRequiredType().isEnum()) {
+
+        Class<?> requiredType = ex.getRequiredType();
+
+        if (requiredType != null && requiredType.isEnum()) {
             message = "Invalid value '" + ex.getValue() +
                     "' for parameter '" + ex.getName() +
                     "'. Allowed values: " + java.util.Arrays.toString(
-                    ex.getRequiredType().getEnumConstants());
+                    requiredType.getEnumConstants());
         } else {
-            message = "Invalid value for parameter '" + ex.getName() + "': " + ex.getValue();
+            message = "Invalid value for parameter '" +
+                    ex.getName() + "': " + ex.getValue();
         }
+
         return ResponseEntity.badRequest().body(
-                build(HttpStatus.BAD_REQUEST, message, request.getRequestURI(), null));
+                build(HttpStatus.BAD_REQUEST, message,
+                        request.getRequestURI(), null));
     }
 
     // ── Domain Exceptions ─────────────────────────────────────────────────
@@ -154,10 +162,10 @@ public class GlobalExceptionHandler {
                                       String path, Object errors) {
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", LocalDateTime.now().toString());
-        body.put("status",    status.value());
-        body.put("error",     status.getReasonPhrase());
-        body.put("message",   message);
-        body.put("path",      path);
+        body.put("status", status.value());
+        body.put("error", status.getReasonPhrase());
+        body.put("message", message);
+        body.put("path", path);
         if (errors != null) body.put("errors", errors);
         return body;
     }

@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.Random;
+import java.security.SecureRandom;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -19,9 +19,10 @@ public class OtpService {
     private static final String PENDING_USER_PREFIX = "PENDING_USER:";
     private static final long OTP_EXPIRY_MINUTES = 5;
     private static final long PENDING_USER_EXPIRY_MINUTES = 10;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     public String generateAndStoreOtp(String email) {
-        String otp = String.format("%06d", new Random().nextInt(999999));
+        String otp = String.format("%06d", RANDOM.nextInt(999999));
 
         redisTemplate.opsForValue().set(OTP_PREFIX + email, otp, OTP_EXPIRY_MINUTES, TimeUnit.MINUTES);
         log.info("OTP generated for: {}", email);
