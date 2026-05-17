@@ -53,7 +53,7 @@ services:
       GOOGLE_REDIRECT_URI: http://3.25.136.37.nip.io:8080/login/oauth2/code/google
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
-      GITHUB_REDIRECT_URI: http://3.25.136.37:8080/login/oauth2/code/github
+      GITHUB_REDIRECT_URI: http://3.25.136.37.nip.io:8080/login/oauth2/code/github
       JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
       JWT_EXPIRATION: 3600000
       REDIRECT_URI: http://3.25.136.37.nip.io/oauth2/redirect
