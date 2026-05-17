@@ -1,3 +1,8 @@
 .idea
 
-uploads
+uploads.env
+docker-compose.yml.save
+
+.env
+*.log
+*.save

@@ -1,0 +1,214 @@
+services:
+  mysql:
+    image: mysql:8
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  redis:
+    image: redis:7
+    restart: always
+    ports:
+      - "6379:6379"
+
+  service-registry:
+    build: ./service-registry
+    restart: always
+    ports:
+      - "8761:8761"
+
+  api-gateway:
+    build: ./api-gateway
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_SERVER_URL: http://service-registry:8761/eureka/
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+      JWT_EXPIRATION: 3600000
+    depends_on:
+      - service-registry
+
+  auth-service:
+    build: ./auth-service
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      PORT: 8081
+      DATABASE_URL: jdbc:mysql://mysql:3306/cs_auth_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: root
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: http://3.25.136.37.nip.io:8080/login/oauth2/code/google
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      GITHUB_REDIRECT_URI: http://3.25.136.37:8080/login/oauth2/code/github
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+      JWT_EXPIRATION: 3600000
+      REDIRECT_URI: http://3.25.136.37.nip.io/oauth2/redirect
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      EUREKA_SERVER_URL: http://service-registry:8761/eureka/
+    depends_on:
+      - mysql
+      - rabbitmq
+      - redis
+      - service-registry
+
+  post-service:
+    build: ./post-service
+    restart: always
+    ports:
+      - "8082:8082"
+    environment:
+      PORT: 8082
+      DATABASE_URL: jdbc:mysql://mysql:3306/cs_post_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: root
+      EUREKA_SERVER_URL: http://service-registry:8761/eureka/
+      EUREKA_PORT: 8761
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    depends_on:
+      - mysql
+      - service-registry
+
+  comment-service:
+    build: ./comment-service
+    restart: always
+    ports:
+      - "8083:8083"
+    environment:
+      PORT: 8083
+      DATABASE_URL: jdbc:mysql://mysql:3306/cs_comment_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: root
+      EUREKA_SERVER_URL: http://service-registry:8761/eureka/
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    depends_on:
+      - mysql
+      - rabbitmq
+      - service-registry
+
+  like-service:
+    build: ./like-service
+    restart: always
+    ports:
+      - "8084:8084"
+    environment:
+      PORT: 8084
+      DATABASE_URL: jdbc:mysql://mysql:3306/cs_like_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: root
+      EUREKA_SERVER_URL: http://service-registry:8761/eureka/
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    depends_on:
+      - mysql
+      - rabbitmq
+      - service-registry
+
+  follow-service:
+    build: ./follow-service
+    restart: always
+    ports:
+      - "8085:8085"
+    environment:
+      PORT: 8085
+      DATABASE_URL: jdbc:mysql://mysql:3306/cs_follow_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: root
+      EUREKA_SERVER_URL: http://service-registry:8761/eureka/
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    depends_on:
+      - mysql
+      - rabbitmq
+      - service-registry
+
+  notification-service:
+    build: ./notification-service
+    restart: always
+    ports:
+      - "8086:8086"
+    environment:
+      PORT: 8086
+      DATABASE_URL: jdbc:mysql://mysql:3306/cs_notification_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: root
+      EUREKA_SERVER_URL: http://service-registry:8761/eureka/
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+      MAIL_HOST: smtp.gmail.com
+      MAIL_PORT: 587
+      GMAIL_USERNAME: rahul.agrawal.nov@gmail.com
+      GMAIL_PASSWORD: ${GMAIL_PASSWORD}
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    depends_on:
+      - mysql
+      - rabbitmq
+      - service-registry
+
+  media-service:
+    build: ./media-service
+    restart: always
+    ports:
+      - "8087:8087"
+    environment:
+      PORT: 8087
+      DATABASE_URL: jdbc:mysql://mysql:3306/cs_media_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: root
+      EUREKA_SERVER_URL: http://service-registry:8761/eureka/
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    depends_on:
+      - mysql
+      - rabbitmq
+      - service-registry
+
+  search-service:
+    build: ./search-service
+    restart: always
+    ports:
+      - "8088:8088"
+    environment:
+      PORT: 8088
+      DATABASE_URL: jdbc:mysql://mysql:3306/cs_search_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: root
+      EUREKA_SERVER_URL: http://service-registry:8761/eureka/
+      EUREKA_PORT: 8761
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    depends_on:
+      - mysql
+      - service-registry
